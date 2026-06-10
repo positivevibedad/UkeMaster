@@ -247,6 +247,18 @@ class AudioEngine {
     if (this.eqBands[index]) this.eqBands[index].gain.value = gainDb;
   }
 
+  setEQBandFreq(index, freq) {
+    if (this.eqBands[index]) this.eqBands[index].frequency.value = freq;
+  }
+
+  getEQBandFreq(index) {
+    return this.eqBands[index] ? this.eqBands[index].frequency.value : 0;
+  }
+
+  getEQBandGain(index) {
+    return this.eqBands[index] ? this.eqBands[index].gain.value : 0;
+  }
+
   setEQQ(q) {
     this._eqQ = q;
     this.eqBands.forEach((b) => { b.Q.value = q; });

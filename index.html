@@ -43,27 +43,30 @@
       </div>
     </section>
 
-    <!-- Frequency analyzer -->
+    <!-- Frequency analyzer with draggable EQ nodes -->
     <section class="analyzer-strip">
-      <canvas id="spectrum"></canvas>
+      <div class="ana-canvas-wrap">
+        <canvas id="spectrum"></canvas>
+        <div id="eqNodes" class="eq-nodes"></div>
+        <div class="analyzer-overlay">
+          <button id="playBtn" class="play-mini" title="Play / pause">▶</button>
+          <span id="fileName" class="file-name"></span>
+          <div class="ana-selects">
+            <select id="analyzerMode" title="View">
+              <option value="bars">Bars</option>
+              <option value="line">Line</option>
+              <option value="both" selected>Bars + Peak</option>
+            </select>
+            <select id="analyzerScale" title="Scale">
+              <option value="log" selected>Log</option>
+              <option value="linear">Linear</option>
+            </select>
+          </div>
+        </div>
+      </div>
       <div class="meters">
         <div class="meter"><div class="meter-fill" id="meterL"></div></div>
         <div class="meter"><div class="meter-fill" id="meterR"></div></div>
-      </div>
-      <div class="analyzer-overlay">
-        <button id="playBtn" class="play-mini" title="Play / pause">▶</button>
-        <span id="fileName" class="file-name"></span>
-        <div class="ana-selects">
-          <select id="analyzerMode" title="View">
-            <option value="bars">Bars</option>
-            <option value="line">Line</option>
-            <option value="both" selected>Bars + Peak</option>
-          </select>
-          <select id="analyzerScale" title="Scale">
-            <option value="log" selected>Log</option>
-            <option value="linear">Linear</option>
-          </select>
-        </div>
       </div>
     </section>
 

@@ -5,6 +5,7 @@
 (function () {
   const engine = new AudioEngine();
   let analyzer = null;
+  let eqNodes = null;
   const eqKnobs = [];
   let eqQKnob = null;
 
@@ -34,8 +35,13 @@
       if (!analyzer) {
         analyzer = new SpectrumAnalyzer(document.getElementById('spectrum'), engine);
         bindAnalyzerControls();
+        analyzer.start();
+        // Draggable EQ nodes live on top of the spectrum and stay aligned
+        // with it via the analyzer's coordinate mapping.
+        eqNodes = new EQNodes(document.getElementById('eqNodes'), engine, analyzer, eqKnobs);
+        analyzer.onLayout = () => eqNodes.layoutAll();
+        eqNodes.layoutAll();
       }
-      analyzer.start();
       document.getElementById('recordBtn').disabled = false;
     }, { once: true });
   }
@@ -95,7 +101,10 @@
         <span class="knob-sub">${UI.fmtHz(band.freq)}</span>
         <span class="knob-val">0.0 dB</span>`;
       wrap.appendChild(el);
-      const knob = new Knob(el, (v) => engine.setEQBand(i, v));
+      const knob = new Knob(el, (v) => {
+        engine.setEQBand(i, v);
+        if (eqNodes) eqNodes.layout(i);   // keep the analyzer node in sync
+      });
       knob.setFormatter(UI.fmtDb);
       eqKnobs.push(knob);
     });
@@ -107,6 +116,87 @@
   document.getElementById('eqReset').addEventListener('click', () => {
     eqKnobs.forEach((k) => k.set(0, true));
   });
+
+  // ---------------------------------------------------------------
+  // Draggable EQ nodes on the analyzer (two-way synced with the knobs)
+  //   horizontal drag = pick frequency, vertical drag = boost / cut
+  // ---------------------------------------------------------------
+  class EQNodes {
+    constructor(container, engine, analyzer, knobs) {
+      this.container = container;
+      this.engine = engine;
+      this.analyzer = analyzer;
+      this.knobs = knobs;
+      this.handles = EQ_BANDS.map((band, i) => {
+        const h = document.createElement('div');
+        h.className = 'eq-node';
+        h.textContent = String(i + 1);
+        const tip = document.createElement('span');
+        tip.className = 'eq-node-tip';
+        h.appendChild(tip);
+        h._tip = tip;
+        container.appendChild(h);
+        this._attachDrag(h, i);
+        return h;
+      });
+    }
+
+    layout(i) {
+      const h = this.handles[i];
+      const freq = this.engine.getEQBandFreq(i);
+      const gain = this.engine.getEQBandGain(i);
+      h.style.left = this.analyzer.freqToX(freq) + 'px';
+      h.style.top = this.analyzer.gainToY(gain) + 'px';
+      h._tip.textContent = `${UI.fmtHz(freq)}  ${UI.fmtDb(gain)}`;
+      // Reflect the (now movable) frequency on the matching knob label.
+      const sub = this.knobs[i] && this.knobs[i].el.querySelector('.knob-sub');
+      if (sub) sub.textContent = UI.fmtHz(freq);
+    }
+
+    layoutAll() { this.handles.forEach((_, i) => this.layout(i)); }
+
+    _attachDrag(h, i) {
+      const move = (clientX, clientY) => {
+        const rect = this.container.getBoundingClientRect();
+        let freq = Math.round(this.analyzer.xToFreq(clientX - rect.left));
+        let gain = Math.round(this.analyzer.yToGain(clientY - rect.top) * 2) / 2;
+        freq = Math.max(20, Math.min(20000, freq));
+        gain = Math.max(-15, Math.min(15, gain));
+        this.engine.setEQBandFreq(i, freq);
+        this.engine.setEQBand(i, gain);
+        if (this.knobs[i]) this.knobs[i].set(gain, false); // sync knob, no feedback
+        this.layout(i);
+      };
+      const down = (e) => {
+        h.classList.add('dragging');
+        const onMove = (ev) => {
+          const t = ev.touches ? ev.touches[0] : ev;
+          move(t.clientX, t.clientY);
+          ev.preventDefault();
+        };
+        const onUp = () => {
+          h.classList.remove('dragging');
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          window.removeEventListener('touchmove', onMove);
+          window.removeEventListener('touchend', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onUp);
+        e.preventDefault();
+      };
+      h.addEventListener('mousedown', down);
+      h.addEventListener('touchstart', down, { passive: false });
+      // double-tap resets this band's gain (keeps the chosen frequency)
+      h.addEventListener('dblclick', () => {
+        this.engine.setEQBand(i, 0);
+        if (this.knobs[i]) this.knobs[i].set(0, false);
+        this.layout(i);
+      });
+    }
+  }
 
   // ---------------------------------------------------------------
   // Filters

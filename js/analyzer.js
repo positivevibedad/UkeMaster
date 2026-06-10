@@ -26,6 +26,7 @@ class SpectrumAnalyzer {
     this.ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.w = rect.width;
     this.h = rect.height;
+    if (this.onLayout) this.onLayout();
   }
 
   start() {
@@ -38,7 +39,31 @@ class SpectrumAnalyzer {
   stop() { this.running = false; }
 
   setMode(m) { this.mode = m; }
-  setScale(s) { this.scale = s; this.peaks = null; }
+  setScale(s) { this.scale = s; this.peaks = null; if (this.onLayout) this.onLayout(); }
+
+  // ---- Coordinate mapping (shared with the draggable EQ nodes) ----
+  _range() {
+    const nyquist = this.engine.ctx ? this.engine.ctx.sampleRate / 2 : 24000;
+    return { minF: 20, maxF: Math.min(nyquist, 20000) };
+  }
+  freqToX(freq) {
+    const { minF, maxF } = this._range();
+    const f = Math.max(minF, Math.min(maxF, freq));
+    const frac = this.scale === 'log'
+      ? Math.log(f / minF) / Math.log(maxF / minF)
+      : (f - minF) / (maxF - minF);
+    return frac * this.w;
+  }
+  xToFreq(x) {
+    const { minF, maxF } = this._range();
+    const frac = Math.max(0, Math.min(1, x / this.w));
+    return this.scale === 'log'
+      ? minF * Math.pow(maxF / minF, frac)
+      : minF + (maxF - minF) * frac;
+  }
+  // Gain axis: +/-15 dB, 0 dB at vertical centre (matches the EQ curve).
+  gainToY(db) { return this.h / 2 - (db / 15) * (this.h / 2 - 6); }
+  yToGain(y) { return ((this.h / 2 - y) / (this.h / 2 - 6)) * 15; }
 
   _frame() {
     if (!this.running) return;
