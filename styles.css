@@ -311,7 +311,7 @@ input[type="range"]::-moz-range-thumb {
 .master-icon { font-size: 15px; }
 .master-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
 .master-row input { flex: 1; }
-.master-val { font-size: 11.5px; color: var(--accent-2); font-variant-numeric: tabular-nums; width: 56px; text-align: right; }
+.master-val { font-size: 11.5px; color: var(--accent-2); font-variant-numeric: tabular-nums; width: 132px; text-align: right; white-space: nowrap; }
 
 /* ===== Tabs ===== */
 .tabs {

@@ -113,7 +113,12 @@
   // The bottom slider is the Maximizer: it drives makeup gain into the
   // soft-clip limiter, so pushing right raises loudness while the fixed
   // ceiling (-0.3 dB, set when the graph is built) holds the peaks.
-  UI.bindRange('maximizer', 'maximizerVal', (v) => engine.setMaximizer({ gainDb: v }), UI.fmtDb);
+  // Show the dB plus the equivalent % increase in level (gain factor - 1).
+  function fmtMaximizer(v) {
+    const pct = Math.round((Math.pow(10, v / 20) - 1) * 100);
+    return `+${v.toFixed(1)} dB · +${pct}%`;
+  }
+  UI.bindRange('maximizer', 'maximizerVal', (v) => engine.setMaximizer({ gainDb: v }), fmtMaximizer);
 
   // ---------------------------------------------------------------
   // EQ — each band: a gain knob + its own compact Q slider
