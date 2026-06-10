@@ -100,7 +100,7 @@ class AudioEngine {
 
     // --- Maximizer: makeup gain + soft-clip limiter (WaveShaper) ---
     const maxGain = ctx.createGain();
-    maxGain.gain.value = this._dbToGain(3);
+    maxGain.gain.value = 1; // 0 dB — matches the Maximizer slider's default
     const limiter = ctx.createWaveShaper();
     limiter.curve = this._makeLimiterCurve(this._dbToGain(-0.3));
     limiter.oversample = '4x';

@@ -87,7 +87,11 @@
   });
   videoEl.addEventListener('pause', () => { playBtn.textContent = '▶'; });
 
-  UI.bindRange('masterGain', null, (v) => engine.setMasterGain(v));
+  // The bottom slider is the Maximizer: it drives makeup gain into the
+  // soft-clip limiter, so pushing right raises loudness while the fixed
+  // ceiling holds the peaks. The limiter ceiling stays at a safe default.
+  engine.setMaximizer({ ceilingDb: -0.3 });
+  UI.bindRange('maximizer', 'maximizerVal', (v) => engine.setMaximizer({ gainDb: v }), UI.fmtDb);
 
   // ---------------------------------------------------------------
   // EQ — each band: a gain knob + its own compact Q slider
@@ -268,8 +272,6 @@
   UI.bindRange('compAttack', 'compAttackVal', (v) => engine.setCompressor({ attack: v }), UI.fmtMs);
   UI.bindRange('compRelease', 'compReleaseVal', (v) => engine.setCompressor({ release: v }), UI.fmtMs);
   UI.bindRange('compKnee', 'compKneeVal', (v) => engine.setCompressor({ knee: v }), UI.fmtDbInt);
-  UI.bindRange('maxGain', 'maxGainVal', (v) => engine.setMaximizer({ gainDb: v }), UI.fmtDb);
-  UI.bindRange('maxCeiling', 'maxCeilingVal', (v) => engine.setMaximizer({ ceilingDb: v }), UI.fmtDb);
 
   // ---------------------------------------------------------------
   // Gain-reduction meters (driven from a small RAF loop)
@@ -362,9 +364,8 @@
     ['threshold', 'ratio', 'attack', 'release', 'knee'].forEach((k) => {
       if (p.comp[k] != null) setControl('comp' + cap(k), p.comp[k]);
     });
-    // Maximizer
-    setControl('maxGain', p.max.gain);
-    setControl('maxCeiling', p.max.ceiling);
+    // Maximizer (bottom slider); ceiling stays fixed
+    setControl('maximizer', p.max.gain);
   }
 
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }

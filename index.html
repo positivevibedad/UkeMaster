@@ -149,14 +149,14 @@
         </div>
       </div>
 
-      <!-- Compressor + Maximizer -->
+      <!-- Compressor -->
       <div class="module-view" data-view="comp">
         <div class="mv-head">
-          <h3>Compressor + Maximizer</h3>
+          <h3>Compressor</h3>
           <label class="switch"><input type="checkbox" id="compOn" checked /><span></span></label>
         </div>
         <div class="mv-body">
-          <div class="slider-grid comp-grid">
+          <div class="slider-grid">
             <div class="control">
               <span class="ctl-label">Threshold</span>
               <input type="range" id="compThreshold" min="-60" max="0" step="1" value="-24" />
@@ -182,33 +182,25 @@
               <input type="range" id="compKnee" min="0" max="40" step="1" value="24" />
               <span class="ctl-val" id="compKneeVal">24 dB</span>
             </div>
-            <div class="control">
-              <span class="ctl-label">Max Gain</span>
-              <input type="range" id="maxGain" min="0" max="24" step="0.5" value="3" />
-              <span class="ctl-val" id="maxGainVal">+3.0 dB</span>
-            </div>
-            <div class="control">
-              <span class="ctl-label">Ceiling</span>
-              <input type="range" id="maxCeiling" min="-12" max="0" step="0.1" value="-0.3" />
-              <span class="ctl-val" id="maxCeilingVal">-0.3 dB</span>
-            </div>
           </div>
           <div class="gr-meter"><div class="gr-fill" id="compGr"></div><span>gain reduction</span></div>
         </div>
       </div>
     </section>
 
-    <!-- Master + tab selector -->
+    <!-- Maximizer (drives the output limiter — push right for more loudness) -->
     <section class="master-row">
       <span class="master-icon">🔊</span>
-      <input type="range" id="masterGain" min="0" max="1.5" step="0.01" value="1" />
+      <span class="master-label">Maximizer</span>
+      <input type="range" id="maximizer" min="0" max="18" step="0.5" value="0" />
+      <span class="master-val" id="maximizerVal">+0.0 dB</span>
     </section>
 
     <nav class="tabs">
       <button class="tab" data-tab="deesser">De-Esser</button>
       <button class="tab active" data-tab="eq">EQ</button>
       <button class="tab" data-tab="filters">Filters</button>
-      <button class="tab" data-tab="comp">Comp + Max</button>
+      <button class="tab" data-tab="comp">Compressor</button>
     </nav>
   </div>
 
