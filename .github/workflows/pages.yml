@@ -1,0 +1,46 @@
+name: Deploy to GitHub Pages
+
+# Publishes the static app (index.html + js/ + styles.css) to GitHub Pages.
+on:
+  push:
+    branches:
+      - claude/audio-mixing-app-ytbwqt
+      - main
+  workflow_dispatch:
+
+# Permissions the GITHUB_TOKEN needs to publish Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; cancel older in-progress runs.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        # enablement: true turns on GitHub Pages for the repo if it isn't
+        # already enabled, so no manual settings change is required.
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
