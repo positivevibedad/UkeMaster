@@ -70,7 +70,7 @@ h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.01em; }
 
 /* ===== Video stage ===== */
 .stage {
-  flex: 1.4 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex; align-items: center; justify-content: center;
   padding: 8px;
@@ -93,7 +93,7 @@ video { width: 100%; height: 100%; object-fit: contain; background: #000; border
 .analyzer-strip {
   flex: none;
   position: relative;
-  height: 22dvh; min-height: 130px; max-height: 220px;
+  height: 20dvh; min-height: 120px; max-height: 200px;
   display: flex; gap: 5px;
   padding: 6px 8px;
   border-top: 1px solid var(--line);
@@ -165,27 +165,38 @@ video { width: 100%; height: 100%; object-fit: contain; background: #000; border
 
 /* ===== Module stage (one effect at a time) ===== */
 .module-stage {
-  flex: 1 1 auto;
+  flex: 1.2 1 auto;
   min-height: 0;
   position: relative;
-  padding: 16px 18px;
-  overflow-y: auto;
+  padding: 12px 16px;
+  overflow: hidden;            /* static page — modules fit, never scroll */
 }
 .module-view { display: none; height: 100%; flex-direction: column; }
 .module-view.active { display: flex; }
 .mv-head {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; margin-bottom: 14px; flex: none;
+  gap: 10px; margin-bottom: 10px; flex: none;
 }
 .mv-head h3 { font-size: 15px; }
-.mv-body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px; }
+.mv-body { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; min-height: 0; }
 
-/* sliders */
-.slider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 22px; }
-.comp-grid { grid-template-columns: repeat(2, 1fr); }
-.control { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.ctl-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.ctl-val { font-size: 12px; font-variant-numeric: tabular-nums; }
+/* sliders — auto-pack into as many columns as fit so dense modules
+   stay within one screen (no scrolling). */
+.slider-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+  gap: 12px 16px;
+}
+.control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 8px; row-gap: 4px;
+  min-width: 0;
+}
+.ctl-label { grid-area: 1 / 1; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ctl-val { grid-area: 1 / 2; justify-self: end; font-size: 11px; font-variant-numeric: tabular-nums; }
+.control input[type="range"] { grid-area: 2 / 1 / 3 / 3; }
 input[type="range"] {
   -webkit-appearance: none; appearance: none;
   width: 100%; height: 5px; border-radius: 4px; background: var(--line); outline: none;
@@ -219,23 +230,23 @@ input[type="range"]::-moz-range-thumb {
 .eq-body { flex-direction: row; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
 .eq-knobs { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .eq-band {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 6px 4px; border-radius: 12px; background: rgba(255,255,255,0.02);
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 5px 4px; border-radius: 12px; background: rgba(255,255,255,0.02);
   border: 1px solid var(--line);
 }
 .knob {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  cursor: ns-resize; user-select: none; padding: 4px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  cursor: ns-resize; user-select: none; padding: 2px;
 }
 .knob-dial {
-  width: 62px; height: 62px; border-radius: 50%;
+  width: 52px; height: 52px; border-radius: 50%;
   background: radial-gradient(circle at 50% 35%, #2a3545, #131922 70%);
   border: 1px solid var(--line);
   box-shadow: inset 0 2px 6px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4);
   position: relative; transition: box-shadow 0.15s;
 }
 .knob-pointer {
-  position: absolute; top: 7px; left: 50%; width: 3px; height: 17px;
+  position: absolute; top: 6px; left: 50%; width: 3px; height: 15px;
   background: var(--accent); border-radius: 2px; transform: translateX(-50%);
   box-shadow: 0 0 6px var(--accent);
 }
@@ -247,11 +258,12 @@ input[type="range"]::-moz-range-thumb {
 .knob-sub { font-size: 10px; color: var(--muted); }
 .knob-val { font-size: 11px; color: var(--accent); font-variant-numeric: tabular-nums; }
 
-/* smaller Q knob beneath each EQ gain knob */
-.knob-sm .knob-dial { width: 40px; height: 40px; }
-.knob-sm .knob-pointer { height: 12px; top: 5px; }
-.knob-sm .knob-label { font-size: 10px; color: var(--muted); }
-.knob-sm .knob-val { font-size: 10px; }
+/* compact per-band Q slider beneath each EQ gain knob */
+.eq-q-row { display: flex; align-items: center; gap: 4px; width: 64px; margin-top: 2px; }
+.eq-q-label { font-size: 9.5px; color: var(--muted); }
+.eq-q-row input[type="range"] { flex: 1; height: 4px; }
+.eq-q-row input[type="range"]::-webkit-slider-thumb { width: 12px; height: 12px; }
+.eq-q-val { font-size: 9px; color: var(--accent); font-variant-numeric: tabular-nums; width: 18px; text-align: right; }
 
 /* filters layout */
 .filter-body { gap: 22px; }
@@ -278,7 +290,7 @@ input[type="range"]::-moz-range-thumb {
 .master-row {
   flex: none;
   display: flex; align-items: center; gap: 12px;
-  padding: 8px 18px;
+  padding: 6px 16px;
   border-top: 1px solid var(--line);
 }
 .master-icon { font-size: 15px; }
@@ -294,7 +306,7 @@ input[type="range"]::-moz-range-thumb {
   background: var(--panel);
 }
 .tab {
-  padding: 11px 6px;
+  padding: 9px 6px;
   background: var(--panel-2); color: var(--muted);
   border: 1px solid var(--line); border-radius: 10px;
   font-size: 12.5px; font-weight: 600; cursor: pointer;
