@@ -85,21 +85,32 @@
 
   // ---- True peak (dBTP) via 4x oversampling using the browser resampler ----
   async function truePeakDb(audioBuffer) {
-    const os = 4;
-    const rate = Math.min(audioBuffer.sampleRate * os, 192000);
-    const len = Math.ceil(audioBuffer.duration * rate);
-    const oc = new OfflineAudioContext(audioBuffer.numberOfChannels, len, rate);
-    const src = oc.createBufferSource();
-    src.buffer = audioBuffer;
-    src.connect(oc.destination);
-    src.start();
-    const r = await oc.startRendering();
-    let peak = 1e-9;
-    for (let c = 0; c < r.numberOfChannels; c++) {
-      const d = r.getChannelData(c);
-      for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > peak) peak = a; }
+    try {
+      const os = 4;
+      const rate = Math.min(audioBuffer.sampleRate * os, 96000); // Safari-safe cap
+      const len = Math.ceil(audioBuffer.duration * rate);
+      const oc = new OfflineAudioContext(audioBuffer.numberOfChannels, len, rate);
+      const src = oc.createBufferSource();
+      src.buffer = audioBuffer;
+      src.connect(oc.destination);
+      src.start();
+      const r = await oc.startRendering();
+      let peak = 1e-9;
+      for (let c = 0; c < r.numberOfChannels; c++) {
+        const d = r.getChannelData(c);
+        for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > peak) peak = a; }
+      }
+      return 20 * Math.log10(peak);
+    } catch (e) {
+      // Fallback: plain sample peak (slightly under-estimates inter-sample
+      // peaks, so add a small safety margin).
+      let peak = 1e-9;
+      for (let c = 0; c < audioBuffer.numberOfChannels; c++) {
+        const d = audioBuffer.getChannelData(c);
+        for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > peak) peak = a; }
+      }
+      return 20 * Math.log10(peak) + 0.3;
     }
-    return 20 * Math.log10(peak);
   }
 
   function applyGain(audioBuffer, gainDb) {

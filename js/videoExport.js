@@ -49,6 +49,26 @@
   }
 
   /**
+   * Extract the audio track from a video as a 48 kHz stereo PCM WAV using
+   * FFmpeg. Used as a robust decode fallback when the browser's
+   * decodeAudioData can't read the original container/codec (e.g. some .mov).
+   * @returns {Promise<Blob>} a WAV blob.
+   */
+  async function extractAudioWav(videoFile, { onStatus } = {}) {
+    const ffmpeg = await ensureLoaded(onStatus);
+    const inName = 'src.' + extOf(videoFile.name);
+    if (onStatus) onStatus('Reading file…');
+    ffmpeg.FS('writeFile', inName, await fetchFile(videoFile));
+    if (onStatus) onStatus('Extracting audio…');
+    await ffmpeg.run('-i', inName, '-vn', '-ac', '2', '-ar', '48000',
+      '-c:a', 'pcm_s16le', 'extracted.wav');
+    const data = ffmpeg.FS('readFile', 'extracted.wav');
+    try { ffmpeg.FS('unlink', 'extracted.wav'); } catch (e) {}
+    try { ffmpeg.FS('unlink', inName); } catch (e) {}
+    return new Blob([data.buffer], { type: 'audio/wav' });
+  }
+
+  /**
    * Mux a normalized WAV into the original video file.
    * @returns {Promise<Blob>} an mp4 with the original video + new audio.
    */
@@ -87,5 +107,5 @@
     return new Blob([data.buffer], { type: 'video/mp4' });
   }
 
-  window.VideoExport = { mux, ensureLoaded };
+  window.VideoExport = { mux, ensureLoaded, extractAudioWav };
 })();

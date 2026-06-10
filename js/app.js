@@ -492,8 +492,7 @@
     let wavBlob = null, info = null;
     try {
       setStatus('Decoding audio…');
-      const buf = await currentFile.arrayBuffer();
-      const decoded = await engine.ctx.decodeAudioData(buf.slice(0));
+      const decoded = await decodeOriginalAudio(currentFile);
 
       setStatus('Rendering effects…');
       const processed = await engine.renderOffline(decoded);
@@ -517,22 +516,39 @@
       downloadLink.classList.remove('hidden');
       setStatus(`✓ Video ready: −13 LUFS · peak ${info.outTP.toFixed(1)} dBTP`, 9000);
     } catch (err) {
-      // If muxing fails (browser/memory), still offer the mastered audio WAV.
+      console.error('Export error:', err);
+      const msg = (err && err.message) ? err.message : String(err);
+      // If muxing failed but we already mastered the audio, still offer the WAV.
       if (wavBlob) {
         downloadLink.href = URL.createObjectURL(wavBlob);
         downloadLink.download = 'ukemaster-mix-13LUFS.wav';
         downloadLink.title = info
-          ? `Mastered audio −13 LUFS / ${info.outTP.toFixed(1)} dBTP (video mux unavailable here)`
+          ? `Mastered audio −13 LUFS / ${info.outTP.toFixed(1)} dBTP (video mux failed: ${msg})`
           : 'Mastered audio';
         downloadLink.classList.remove('hidden');
-        setStatus('Video export unavailable here — saved mastered audio (WAV)', 9000);
+        setStatus('Video mux failed — saved mastered audio (WAV)', 9000);
       } else {
-        setStatus('Export failed on this browser/file', 7000);
+        setStatus('Export failed: ' + msg, 12000);
       }
     }
     exportBtn.disabled = false;
     exporting = false;
   });
+
+  // Decode the original file's audio. Try the browser first; if it can't read
+  // the container/codec (common for .mov on some browsers), fall back to
+  // extracting a WAV with FFmpeg and decoding that.
+  async function decodeOriginalAudio(file) {
+    try {
+      const buf = await file.arrayBuffer();
+      return await engine.ctx.decodeAudioData(buf.slice(0));
+    } catch (e) {
+      setStatus('Preparing audio (exporter)…');
+      const wav = await VideoExport.extractAudioWav(file, { onStatus: setStatus });
+      const wbuf = await wav.arrayBuffer();
+      return await engine.ctx.decodeAudioData(wbuf);
+    }
+  }
 
   // ---------------------------------------------------------------
   // Init
