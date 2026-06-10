@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>UkeMaster — Audio Mixing Studio</title>
-  <link rel="stylesheet" href="styles.css?v=15" />
+  <link rel="stylesheet" href="styles.css?v=16" />
 </head>
 <body>
   <div class="app">
@@ -123,6 +123,11 @@
               <input type="range" id="hpfFreq" min="20" max="2000" step="1" value="80" />
               <span class="ctl-val" id="hpfFreqVal">80 Hz</span>
             </div>
+            <div class="slope-seg" data-filter="hpf">
+              <span class="ctl-label">Slope</span>
+              <button class="slope-btn active" data-slope="12">−12 dB</button>
+              <button class="slope-btn" data-slope="24">−24 dB</button>
+            </div>
           </div>
           <div class="filter-col">
             <div class="row-head">
@@ -133,6 +138,11 @@
               <span class="ctl-label">Cutoff frequency</span>
               <input type="range" id="lpfFreq" min="1000" max="20000" step="10" value="18000" />
               <span class="ctl-val" id="lpfFreqVal">18.0 kHz</span>
+            </div>
+            <div class="slope-seg" data-filter="lpf">
+              <span class="ctl-label">Slope</span>
+              <button class="slope-btn active" data-slope="12">−12 dB</button>
+              <button class="slope-btn" data-slope="24">−24 dB</button>
             </div>
           </div>
         </div>
@@ -193,9 +203,9 @@
     </nav>
   </div>
 
-  <script src="js/audioEngine.js?v=15"></script>
-  <script src="js/analyzer.js?v=15"></script>
-  <script src="js/ui.js?v=15"></script>
-  <script src="js/app.js?v=15"></script>
+  <script src="js/audioEngine.js?v=16"></script>
+  <script src="js/analyzer.js?v=16"></script>
+  <script src="js/ui.js?v=16"></script>
+  <script src="js/app.js?v=16"></script>
 </body>
 </html>

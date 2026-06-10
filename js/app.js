@@ -35,6 +35,14 @@
       if (el) el.dispatchEvent(new Event('change'));
     });
     eqKnobs.forEach((k, i) => engine.setEQBand(i, k.value));
+    // Apply the currently-selected filter slopes.
+    document.querySelectorAll('.slope-seg').forEach((seg) => {
+      const active = seg.querySelector('.slope-btn.active');
+      if (!active) return;
+      const slope = parseInt(active.dataset.slope, 10);
+      if (seg.dataset.filter === 'hpf') engine.setHPF({ slope });
+      else engine.setLPF({ slope });
+    });
   }
 
   function loadFile(file) {
@@ -266,6 +274,20 @@
   UI.bindRange('hpfFreq', 'hpfFreqVal', (v) => engine.setHPF({ freq: v }), UI.fmtHz);
   UI.bindCheckbox('lpfOn', (on) => engine.setLPF({ on }));
   UI.bindRange('lpfFreq', 'lpfFreqVal', (v) => engine.setLPF({ freq: v }), UI.fmtHz);
+
+  // Filter slope selectors (−12 vs −24 dB/oct)
+  document.querySelectorAll('.slope-seg').forEach((seg) => {
+    const which = seg.dataset.filter; // 'hpf' | 'lpf'
+    seg.querySelectorAll('.slope-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        seg.querySelectorAll('.slope-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const slope = parseInt(btn.dataset.slope, 10);
+        if (which === 'hpf') engine.setHPF({ slope });
+        else engine.setLPF({ slope });
+      });
+    });
+  });
 
   // ---------------------------------------------------------------
   // De-Esser

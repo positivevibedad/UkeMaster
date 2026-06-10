@@ -51,6 +51,12 @@ class AudioEngine {
     hpf._userFreq = 80;           // remembered cutoff when engaged
     hpf._userQ = 0.7071;
     this._hpfOn = false;
+    this._hpfSlope = 12;          // 12 or 24 dB/oct
+    // second cascaded stage (engaged only for 24 dB/oct)
+    const hpf2 = ctx.createBiquadFilter();
+    hpf2.type = 'highpass';
+    hpf2.frequency.value = 10;
+    hpf2.Q.value = 0.7071;
 
     // --- Low-pass filter --- (starts neutralised; toggle defaults to off)
     const lpf = ctx.createBiquadFilter();
@@ -60,6 +66,11 @@ class AudioEngine {
     lpf._userFreq = 18000;
     lpf._userQ = 0.7071;          // Butterworth — flat passband, no reso bump
     this._lpfOn = false;
+    this._lpfSlope = 12;
+    const lpf2 = ctx.createBiquadFilter();
+    lpf2.type = 'lowpass';
+    lpf2.frequency.value = 20000;
+    lpf2.Q.value = 0.7071;
 
     // --- Parametric EQ: 4 peaking bands in series, each with its own Q ---
     this.eqBands = EQ_BANDS.map((b) => {
@@ -128,9 +139,13 @@ class AudioEngine {
     const recordDest = ctx.createMediaStreamDestination();
 
     // --- Wire it together ---
+    // Each filter has a second cascaded stage for the 24 dB/oct option
+    // (two Butterworth stages = 24 dB/oct, flat, no resonant bump).
     inputGain.connect(hpf);
-    hpf.connect(lpf);
-    let prev = lpf;
+    hpf.connect(hpf2);
+    hpf2.connect(lpf);
+    lpf.connect(lpf2);
+    let prev = lpf2;
     this.eqBands.forEach((b) => {
       prev.connect(b);
       prev = b;
@@ -149,7 +164,7 @@ class AudioEngine {
     splitter.connect(meterR, 1);
 
     this.nodes = {
-      inputGain, hpf, lpf, deEss, comp,
+      inputGain, hpf, hpf2, lpf, lpf2, deEss, comp,
       compIn, compWet, compDry, compOut,
       maxGain, limiter, analyser, masterGain,
       meterL, meterR, recordDest,
@@ -219,30 +234,38 @@ class AudioEngine {
   // ---- Parameter setters ----
   _dbToGain(db) { return Math.pow(10, db / 20); }
 
-  setHPF({ on, freq, q }) {
-    const hpf = this.nodes.hpf;
+  setHPF({ on, freq, q, slope }) {
+    const hpf = this.nodes.hpf, hpf2 = this.nodes.hpf2;
     if (!hpf) return;
     if (on !== undefined) this._hpfOn = on;
     if (freq !== undefined) hpf._userFreq = freq;
     if (q !== undefined) hpf._userQ = q;
+    if (slope !== undefined) this._hpfSlope = slope;
     const f = hpf._userFreq ?? hpf.frequency.value;
     const qv = hpf._userQ ?? hpf.Q.value;
-    // Neutralise by moving the cutoff out of band (10 Hz), keeping a clean
-    // Butterworth Q so there is never a resonant bump.
+    // Stage 1 always active when on; neutralise by moving the cutoff out of
+    // band (10 Hz). Stage 2 engages only for a 24 dB/oct slope.
     hpf.frequency.value = this._hpfOn ? f : 10;
     hpf.Q.value = qv;
+    const stage2 = this._hpfOn && this._hpfSlope === 24;
+    hpf2.frequency.value = stage2 ? f : 10;
+    hpf2.Q.value = qv;
   }
 
-  setLPF({ on, freq, q }) {
-    const lpf = this.nodes.lpf;
+  setLPF({ on, freq, q, slope }) {
+    const lpf = this.nodes.lpf, lpf2 = this.nodes.lpf2;
     if (!lpf) return;
     if (on !== undefined) this._lpfOn = on;
     if (freq !== undefined) lpf._userFreq = freq;
     if (q !== undefined) lpf._userQ = q;
+    if (slope !== undefined) this._lpfSlope = slope;
     const f = lpf._userFreq ?? lpf.frequency.value;
     const qv = lpf._userQ ?? lpf.Q.value;
     lpf.frequency.value = this._lpfOn ? f : 20000;
     lpf.Q.value = qv;
+    const stage2 = this._lpfOn && this._lpfSlope === 24;
+    lpf2.frequency.value = stage2 ? f : 20000;
+    lpf2.Q.value = qv;
   }
 
   setEQBand(index, gainDb) {
@@ -291,8 +314,14 @@ class AudioEngine {
         total[i] *= this._biquadMag(type, f0, Q, freqArray[i], fs);
       }
     };
-    if (this._hpfOn && this.nodes.hpf) apply('hp', this.nodes.hpf.frequency.value);
-    if (this._lpfOn && this.nodes.lpf) apply('lp', this.nodes.lpf.frequency.value);
+    if (this._hpfOn && this.nodes.hpf) {
+      apply('hp', this.nodes.hpf.frequency.value);
+      if (this._hpfSlope === 24) apply('hp', this.nodes.hpf.frequency.value);
+    }
+    if (this._lpfOn && this.nodes.lpf) {
+      apply('lp', this.nodes.lpf.frequency.value);
+      if (this._lpfSlope === 24) apply('lp', this.nodes.lpf.frequency.value);
+    }
     return total;
   }
 
