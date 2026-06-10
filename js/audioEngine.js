@@ -46,17 +46,17 @@ class AudioEngine {
     // --- High-pass filter --- (starts neutralised; toggle defaults to off)
     const hpf = ctx.createBiquadFilter();
     hpf.type = 'highpass';
-    hpf.frequency.value = 10;     // neutral
-    hpf.Q.value = 0.0001;
+    hpf.frequency.value = 10;     // neutral: out of the audible band
+    hpf.Q.value = 0.7071;         // Butterworth — flat, no resonant bump
     hpf._userFreq = 80;           // remembered cutoff when engaged
-    hpf._userQ = 0.7071;          // Butterworth — flat passband, no reso bump
+    hpf._userQ = 0.7071;
     this._hpfOn = false;
 
     // --- Low-pass filter --- (starts neutralised; toggle defaults to off)
     const lpf = ctx.createBiquadFilter();
     lpf.type = 'lowpass';
-    lpf.frequency.value = 22050;  // neutral
-    lpf.Q.value = 0.0001;
+    lpf.frequency.value = 20000;  // neutral: out of the audible band
+    lpf.Q.value = 0.7071;
     lpf._userFreq = 18000;
     lpf._userQ = 0.7071;          // Butterworth — flat passband, no reso bump
     this._lpfOn = false;
@@ -227,9 +227,10 @@ class AudioEngine {
     if (q !== undefined) hpf._userQ = q;
     const f = hpf._userFreq ?? hpf.frequency.value;
     const qv = hpf._userQ ?? hpf.Q.value;
-    // "Off" => effectively no filtering (sub-audible cutoff, gentle slope)
+    // Neutralise by moving the cutoff out of band (10 Hz), keeping a clean
+    // Butterworth Q so there is never a resonant bump.
     hpf.frequency.value = this._hpfOn ? f : 10;
-    hpf.Q.value = this._hpfOn ? qv : 0.0001;
+    hpf.Q.value = qv;
   }
 
   setLPF({ on, freq, q }) {
@@ -240,8 +241,8 @@ class AudioEngine {
     if (q !== undefined) lpf._userQ = q;
     const f = lpf._userFreq ?? lpf.frequency.value;
     const qv = lpf._userQ ?? lpf.Q.value;
-    lpf.frequency.value = this._lpfOn ? f : 22050;
-    lpf.Q.value = this._lpfOn ? qv : 0.0001;
+    lpf.frequency.value = this._lpfOn ? f : 20000;
+    lpf.Q.value = qv;
   }
 
   setEQBand(index, gainDb) {
@@ -275,14 +276,16 @@ class AudioEngine {
   /** True when either filter is engaged (used to draw the filter curve). */
   isFilterActive() { return !!(this._hpfOn || this._lpfOn); }
 
-  /** Combined magnitude response of HPF * LPF over the given frequencies. */
+  /** Combined magnitude response of the *engaged* filters only. */
   getFilterResponse(freqArray) {
     const n = freqArray.length;
     const total = new Float32Array(n).fill(1);
     const mag = new Float32Array(n);
     const phase = new Float32Array(n);
-    [this.nodes.hpf, this.nodes.lpf].forEach((f) => {
-      if (!f) return;
+    const active = [];
+    if (this._hpfOn && this.nodes.hpf) active.push(this.nodes.hpf);
+    if (this._lpfOn && this.nodes.lpf) active.push(this.nodes.lpf);
+    active.forEach((f) => {
       f.getFrequencyResponse(freqArray, mag, phase);
       for (let i = 0; i < n; i++) total[i] *= mag[i];
     });
