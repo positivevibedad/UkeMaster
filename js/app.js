@@ -469,7 +469,7 @@
   // ---------------------------------------------------------------
   const exportBtn = document.getElementById('recordBtn');   // now the Export button
   const downloadLink = document.getElementById('downloadLink');
-  let currentFile = null;     // the loaded File, needed to mux the video
+  let currentFile = null;     // the loaded File, decoded for the audio export
   let exporting = false;
 
   // Transient status shown in the analyzer's filename slot.
@@ -483,13 +483,18 @@
   }
 
   // Full export pipeline: decode original audio → render the effect chain
-  // offline → normalize to −13 LUFS / −0.5 dBTP → bake into the video (mp4).
+  // offline → normalize to −13 LUFS / −0.5 dBTP → export as a mastered WAV.
+  //
+  // Note: we intentionally do NOT bake the audio back into the video here.
+  // In-browser muxing (ffmpeg.wasm) is unreliable on iOS Safari, so for now we
+  // ship the reliable mastered-audio export. Baked-in video will be done
+  // natively (AVFoundation) in the store app. The mux path is still present in
+  // videoExport.js so we can pick that work back up later.
   exportBtn.addEventListener('click', async () => {
     if (exporting || !currentFile) return;
     exporting = true;
     exportBtn.disabled = true;
     downloadLink.classList.add('hidden');
-    let wavBlob = null, info = null;
     try {
       setStatus('Decoding audio…');
       const decoded = await decodeOriginalAudio(currentFile);
@@ -500,36 +505,20 @@
       setStatus('Normalizing to −13 LUFS…');
       const norm = await Loudness.normalizeAudioBuffer(processed,
         { targetLUFS: -13, ceilingDbTP: -0.5 });
-      info = norm.info;
-      wavBlob = Loudness.encodeWAV(norm.buffer);
+      const info = norm.info;
+      const wavBlob = Loudness.encodeWAV(norm.buffer);
 
-      // Bake the normalized audio into the original video.
-      const mp4 = await VideoExport.mux(currentFile, wavBlob, {
-        onStatus: (m) => setStatus(m),
-        onProgress: (r) => setStatus(`Muxing video… ${Math.round((r || 0) * 100)}%`),
-      });
-      downloadLink.href = URL.createObjectURL(mp4);
-      downloadLink.download = 'ukemaster-export.mp4';
-      downloadLink.title = `Video + audio mastered to −13 LUFS / −0.5 dBTP `
+      downloadLink.href = URL.createObjectURL(wavBlob);
+      downloadLink.download = 'ukemaster-mix-13LUFS.wav';
+      downloadLink.title = `Mastered audio −13 LUFS / −0.5 dBTP `
         + `(measured ${info.inLUFS.toFixed(1)} LUFS, ${info.gainDb >= 0 ? '+' : ''}`
         + `${info.gainDb.toFixed(1)} dB, peak ${info.outTP.toFixed(1)} dBTP)`;
       downloadLink.classList.remove('hidden');
-      setStatus(`✓ Video ready: −13 LUFS · peak ${info.outTP.toFixed(1)} dBTP`, 9000);
+      setStatus(`✓ Audio ready: −13 LUFS · peak ${info.outTP.toFixed(1)} dBTP`, 9000);
     } catch (err) {
       console.error('Export error:', err);
       const msg = (err && err.message) ? err.message : String(err);
-      // If muxing failed but we already mastered the audio, still offer the WAV.
-      if (wavBlob) {
-        downloadLink.href = URL.createObjectURL(wavBlob);
-        downloadLink.download = 'ukemaster-mix-13LUFS.wav';
-        downloadLink.title = info
-          ? `Mastered audio −13 LUFS / ${info.outTP.toFixed(1)} dBTP (video mux failed: ${msg})`
-          : 'Mastered audio';
-        downloadLink.classList.remove('hidden');
-        setStatus('Video mux failed — saved mastered audio (WAV)', 9000);
-      } else {
-        setStatus('Export failed: ' + msg, 12000);
-      }
+      setStatus('Export failed: ' + msg, 12000);
     }
     exportBtn.disabled = false;
     exporting = false;
