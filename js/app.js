@@ -11,7 +11,7 @@
   // --- Elements ---
   const fileInput = document.getElementById('fileInput');
   const browseBtn = document.getElementById('browseBtn');
-  const changeFileBtn = document.getElementById('changeFileBtn');
+  const stage = document.querySelector('.stage');
   const dropZone = document.getElementById('dropZone');
   const playerWrap = document.getElementById('playerWrap');
   const videoEl = document.getElementById('videoEl');
@@ -41,22 +41,24 @@
   }
 
   browseBtn.addEventListener('click', () => fileInput.click());
-  changeFileBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', (e) => loadFile(e.target.files[0]));
+  // Clicking the filename in the analyzer overlay lets you swap the file.
+  fileName.addEventListener('click', () => fileInput.click());
 
+  // Drag-and-drop works over the whole stage, before and after loading.
   ['dragover', 'dragenter'].forEach((ev) =>
-    dropZone.addEventListener(ev, (e) => {
+    stage.addEventListener(ev, (e) => {
       e.preventDefault();
       dropZone.classList.add('drag-over');
     })
   );
   ['dragleave', 'drop'].forEach((ev) =>
-    dropZone.addEventListener(ev, (e) => {
+    stage.addEventListener(ev, (e) => {
       e.preventDefault();
       dropZone.classList.remove('drag-over');
     })
   );
-  dropZone.addEventListener('drop', (e) => {
+  stage.addEventListener('drop', (e) => {
     const file = e.dataTransfer.files[0];
     if (file) loadFile(file);
   });
@@ -69,8 +71,8 @@
     if (videoEl.paused) videoEl.play();
     else videoEl.pause();
   });
-  videoEl.addEventListener('play', () => { playBtn.textContent = '⏸ Pause'; });
-  videoEl.addEventListener('pause', () => { playBtn.textContent = '▶ Play'; });
+  videoEl.addEventListener('play', () => { playBtn.textContent = '⏸'; });
+  videoEl.addEventListener('pause', () => { playBtn.textContent = '▶'; });
 
   UI.bindRange('masterGain', null, (v) => engine.setMasterGain(v));
 
@@ -247,13 +249,39 @@
     }
   }
 
-  document.querySelectorAll('.preset').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.preset').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      applyPreset(btn.dataset.preset);
-    });
+  document.getElementById('presetSelect').addEventListener('change', (e) => {
+    if (e.target.value) applyPreset(e.target.value);
   });
+
+  // ---------------------------------------------------------------
+  // Tab switching (one effect module visible at a time)
+  // ---------------------------------------------------------------
+  const tabs = document.querySelectorAll('.tab');
+  const views = document.querySelectorAll('.module-view');
+  function showTab(name) {
+    tabs.forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+    views.forEach((v) => v.classList.toggle('active', v.dataset.view === name));
+  }
+  tabs.forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
+  showTab('eq');
+
+  // Reflect each module's enabled state as a dot on its tab.
+  function syncTabDot(tabName, on) {
+    const tab = document.querySelector(`.tab[data-tab="${tabName}"]`);
+    if (tab) tab.classList.toggle('tab-enabled', on);
+  }
+  const deEssOnEl = document.getElementById('deEssOn');
+  const compOnEl = document.getElementById('compOn');
+  const hpfOnEl = document.getElementById('hpfOn');
+  const lpfOnEl = document.getElementById('lpfOn');
+  function refreshDots() {
+    syncTabDot('deesser', deEssOnEl.checked);
+    syncTabDot('comp', compOnEl.checked);
+    syncTabDot('filters', hpfOnEl.checked || lpfOnEl.checked);
+  }
+  [deEssOnEl, compOnEl, hpfOnEl, lpfOnEl].forEach((el) =>
+    el.addEventListener('change', refreshDots));
+  refreshDots();
 
   // ---------------------------------------------------------------
   // Recording the processed mix

@@ -5,6 +5,29 @@ Drop in a `.mov` / `.mp4`, watch the spectrum move in real time, and shape the
 sound with a full processing chain. Everything runs locally in your browser
 using the **Web Audio API** — your videos never leave your device.
 
+## Layout
+
+A single-frame, no-scroll interface (phone-style column):
+
+```
+┌─────────────────────────┐
+│  brand      presets ● ⬇  │  top bar
+├─────────────────────────┤
+│        video            │  player
+├─────────────────────────┤
+│  ▮▮▯▮ frequency analyzer │  real-time spectrum + L/R meters
+├─────────────────────────┤
+│   active effect module   │  one effect shown at a time
+├─────────────────────────┤
+│  🔊 ───────●─────         │  master volume
+├─────────────────────────┤
+│ De-Esser │ EQ │ Filt │Cmp│  tab selector
+└─────────────────────────┘
+```
+
+Tap a tab to switch which effect you're editing; a dot on the tab marks an
+enabled effect. Everything stays in one frame — no scrolling.
+
 ## Features
 
 - **🎬 Video upload** — drag-and-drop or browse for iPhone `.mov`/`.mp4` (and

@@ -2,97 +2,123 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>UkeMaster — Audio Mixing Studio</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="app-header">
-    <div class="brand">
-      <span class="logo">🎚️</span>
-      <div>
-        <h1>UkeMaster</h1>
-        <p class="tagline">Real-time audio mixing for your iPhone videos</p>
+  <div class="app">
+    <!-- Top bar -->
+    <header class="bar">
+      <div class="brand">
+        <span class="logo">🎚️</span>
+        <span class="brand-name">UkeMaster</span>
       </div>
-    </div>
-    <div class="header-actions">
-      <button id="recordBtn" class="btn btn-record" disabled>● Record Mix</button>
-      <a id="downloadLink" class="btn btn-ghost hidden" download="ukemaster-mix.webm">⬇ Download</a>
-    </div>
-  </header>
+      <div class="bar-actions">
+        <select id="presetSelect" class="preset-select" title="Presets">
+          <option value="" disabled selected>Presets</option>
+          <option value="flat">Flat / Bypass</option>
+          <option value="voice">Voice / Vlog</option>
+          <option value="podcast">Podcast Warm</option>
+          <option value="bright">Bright &amp; Loud</option>
+          <option value="music">Music</option>
+        </select>
+        <button id="recordBtn" class="icon-btn" title="Record mix" disabled>●</button>
+        <a id="downloadLink" class="icon-btn hidden" title="Download mix" download="ukemaster-mix.webm">⬇</a>
+      </div>
+    </header>
 
-  <main>
-    <!-- Upload / Player -->
-    <section class="panel video-panel">
+    <!-- Video stage -->
+    <section class="stage">
       <div id="dropZone" class="drop-zone">
         <input type="file" id="fileInput" accept="video/*,audio/*" hidden />
         <div class="drop-inner">
           <span class="drop-icon">🎬</span>
-          <p><strong>Drop a video here</strong> or <button id="browseBtn" class="link-btn">browse</button></p>
-          <p class="hint">iPhone .mov / .mp4 and audio files supported</p>
+          <p><strong>Drop a video</strong> or <button id="browseBtn" class="link-btn">browse</button></p>
+          <p class="hint">iPhone .mov / .mp4 supported</p>
         </div>
       </div>
-
       <div id="playerWrap" class="player-wrap hidden">
         <video id="videoEl" playsinline controls></video>
-        <div class="transport">
-          <button id="playBtn" class="btn">▶ Play</button>
-          <div class="meta">
-            <span id="fileName" class="file-name"></span>
-            <button id="changeFileBtn" class="link-btn">change file</button>
-          </div>
-          <div class="master">
-            <label>Master</label>
-            <input type="range" id="masterGain" min="0" max="1.5" step="0.01" value="1" />
-          </div>
+      </div>
+    </section>
+
+    <!-- Frequency analyzer -->
+    <section class="analyzer-strip">
+      <canvas id="spectrum"></canvas>
+      <div class="meters">
+        <div class="meter"><div class="meter-fill" id="meterL"></div></div>
+        <div class="meter"><div class="meter-fill" id="meterR"></div></div>
+      </div>
+      <div class="analyzer-overlay">
+        <button id="playBtn" class="play-mini" title="Play / pause">▶</button>
+        <span id="fileName" class="file-name"></span>
+        <div class="ana-selects">
+          <select id="analyzerMode" title="View">
+            <option value="bars">Bars</option>
+            <option value="line">Line</option>
+            <option value="both" selected>Bars + Peak</option>
+          </select>
+          <select id="analyzerScale" title="Scale">
+            <option value="log" selected>Log</option>
+            <option value="linear">Linear</option>
+          </select>
         </div>
       </div>
     </section>
 
-    <!-- Spectrum Analyzer (centerpiece) -->
-    <section class="panel analyzer-panel">
-      <div class="panel-head">
-        <h2>Spectrum Analyzer</h2>
-        <div class="analyzer-controls">
-          <label class="seg">
-            View
-            <select id="analyzerMode">
-              <option value="bars">Bars</option>
-              <option value="line">Line</option>
-              <option value="both" selected>Bars + Peak</option>
-            </select>
-          </label>
-          <label class="seg">
-            Range
-            <select id="analyzerScale">
-              <option value="log" selected>Log (musical)</option>
-              <option value="linear">Linear</option>
-            </select>
-          </label>
+    <!-- Module stage: one effect shown at a time -->
+    <section class="module-stage">
+      <!-- De-Esser -->
+      <div class="module-view" data-view="deesser">
+        <div class="mv-head">
+          <h3>De-Esser</h3>
+          <label class="switch"><input type="checkbox" id="deEssOn" /><span></span></label>
+        </div>
+        <div class="mv-body">
+          <div class="slider-grid">
+            <div class="control">
+              <span class="ctl-label">Frequency</span>
+              <input type="range" id="deEssFreq" min="2000" max="12000" step="50" value="6500" />
+              <span class="ctl-val" id="deEssFreqVal">6.5 kHz</span>
+            </div>
+            <div class="control">
+              <span class="ctl-label">Amount</span>
+              <input type="range" id="deEssAmount" min="0" max="40" step="0.5" value="12" />
+              <span class="ctl-val" id="deEssAmountVal">12 dB</span>
+            </div>
+          </div>
+          <div class="gr-meter"><div class="gr-fill" id="deEssGr"></div><span>reduction</span></div>
         </div>
       </div>
-      <div class="analyzer-stage">
-        <canvas id="spectrum"></canvas>
-        <div class="meters">
-          <div class="meter"><div class="meter-fill" id="meterL"></div><span>L</span></div>
-          <div class="meter"><div class="meter-fill" id="meterR"></div><span>R</span></div>
-        </div>
-      </div>
-    </section>
 
-    <div class="rack">
-      <!-- Filters: HPF / LPF -->
-      <section class="panel module" data-module="filters">
-        <div class="module-head">
-          <h3>Filters</h3>
+      <!-- Equalizer -->
+      <div class="module-view" data-view="eq">
+        <div class="mv-head">
+          <h3>Equalizer</h3>
+          <button id="eqReset" class="link-btn">reset</button>
         </div>
-        <div class="filter-grid">
+        <div class="mv-body eq-body">
+          <div id="eqKnobs" class="eq-knobs"></div>
+          <div class="knob" id="eqQKnob" data-min="1" data-max="5" data-step="0.1"
+               data-value="1.5" data-default="1.5">
+            <div class="knob-dial"><div class="knob-pointer"></div></div>
+            <span class="knob-label">Q</span>
+            <span class="knob-val" id="eqQVal">1.5</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters: HPF & LPF -->
+      <div class="module-view" data-view="filters">
+        <div class="mv-head"><h3>High-Pass &amp; Low-Pass Filters</h3></div>
+        <div class="mv-body filter-body">
           <div class="filter-col">
             <div class="row-head">
-              <label class="switch"><input type="checkbox" id="hpfOn" /><span></span></label>
               <span class="mod-label">High-Pass</span>
+              <label class="switch"><input type="checkbox" id="hpfOn" /><span></span></label>
             </div>
-            <div class="knob-row">
+            <div class="slider-grid">
               <div class="control">
                 <span class="ctl-label">Freq</span>
                 <input type="range" id="hpfFreq" min="20" max="2000" step="1" value="80" />
@@ -107,10 +133,10 @@
           </div>
           <div class="filter-col">
             <div class="row-head">
-              <label class="switch"><input type="checkbox" id="lpfOn" /><span></span></label>
               <span class="mod-label">Low-Pass</span>
+              <label class="switch"><input type="checkbox" id="lpfOn" /><span></span></label>
             </div>
-            <div class="knob-row">
+            <div class="slider-grid">
               <div class="control">
                 <span class="ctl-label">Freq</span>
                 <input type="range" id="lpfFreq" min="1000" max="20000" step="10" value="18000" />
@@ -124,108 +150,70 @@
             </div>
           </div>
         </div>
-      </section>
-
-      <!-- Equalizer (4-band parametric, knobs) -->
-      <section class="panel module module-eq" data-module="eq">
-        <div class="module-head">
-          <h3>Equalizer</h3>
-          <button id="eqReset" class="link-btn">reset</button>
-        </div>
-        <div id="eqKnobs" class="eq-knobs"></div>
-        <div class="eq-q">
-          <div class="knob" id="eqQKnob" data-min="1" data-max="5" data-step="0.1"
-               data-value="1.5" data-default="1.5">
-            <div class="knob-dial"><div class="knob-pointer"></div></div>
-            <span class="knob-label">Q</span>
-            <span class="knob-val" id="eqQVal">1.5</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- De-Esser -->
-      <section class="panel module" data-module="deesser">
-        <div class="module-head">
-          <label class="switch"><input type="checkbox" id="deEssOn" /><span></span></label>
-          <h3>De-Esser</h3>
-        </div>
-        <div class="knob-row">
-          <div class="control">
-            <span class="ctl-label">Freq</span>
-            <input type="range" id="deEssFreq" min="2000" max="12000" step="50" value="6500" />
-            <span class="ctl-val" id="deEssFreqVal">6.5 kHz</span>
-          </div>
-          <div class="control">
-            <span class="ctl-label">Amount</span>
-            <input type="range" id="deEssAmount" min="0" max="40" step="0.5" value="12" />
-            <span class="ctl-val" id="deEssAmountVal">12 dB</span>
-          </div>
-        </div>
-        <div class="gr-meter"><div class="gr-fill" id="deEssGr"></div><span>reduction</span></div>
-      </section>
+      </div>
 
       <!-- Compressor + Maximizer -->
-      <section class="panel module module-comp" data-module="comp">
-        <div class="module-head">
-          <label class="switch"><input type="checkbox" id="compOn" checked /><span></span></label>
+      <div class="module-view" data-view="comp">
+        <div class="mv-head">
           <h3>Compressor + Maximizer</h3>
+          <label class="switch"><input type="checkbox" id="compOn" checked /><span></span></label>
         </div>
-        <div class="knob-row knob-row-wrap">
-          <div class="control">
-            <span class="ctl-label">Threshold</span>
-            <input type="range" id="compThreshold" min="-60" max="0" step="1" value="-24" />
-            <span class="ctl-val" id="compThresholdVal">-24 dB</span>
+        <div class="mv-body">
+          <div class="slider-grid comp-grid">
+            <div class="control">
+              <span class="ctl-label">Threshold</span>
+              <input type="range" id="compThreshold" min="-60" max="0" step="1" value="-24" />
+              <span class="ctl-val" id="compThresholdVal">-24 dB</span>
+            </div>
+            <div class="control">
+              <span class="ctl-label">Ratio</span>
+              <input type="range" id="compRatio" min="1" max="20" step="0.5" value="4" />
+              <span class="ctl-val" id="compRatioVal">4.0:1</span>
+            </div>
+            <div class="control">
+              <span class="ctl-label">Attack</span>
+              <input type="range" id="compAttack" min="0" max="200" step="1" value="10" />
+              <span class="ctl-val" id="compAttackVal">10 ms</span>
+            </div>
+            <div class="control">
+              <span class="ctl-label">Release</span>
+              <input type="range" id="compRelease" min="20" max="1000" step="10" value="250" />
+              <span class="ctl-val" id="compReleaseVal">250 ms</span>
+            </div>
+            <div class="control">
+              <span class="ctl-label">Knee</span>
+              <input type="range" id="compKnee" min="0" max="40" step="1" value="24" />
+              <span class="ctl-val" id="compKneeVal">24 dB</span>
+            </div>
+            <div class="control">
+              <span class="ctl-label">Max Gain</span>
+              <input type="range" id="maxGain" min="0" max="24" step="0.5" value="3" />
+              <span class="ctl-val" id="maxGainVal">+3.0 dB</span>
+            </div>
+            <div class="control">
+              <span class="ctl-label">Ceiling</span>
+              <input type="range" id="maxCeiling" min="-12" max="0" step="0.1" value="-0.3" />
+              <span class="ctl-val" id="maxCeilingVal">-0.3 dB</span>
+            </div>
           </div>
-          <div class="control">
-            <span class="ctl-label">Ratio</span>
-            <input type="range" id="compRatio" min="1" max="20" step="0.5" value="4" />
-            <span class="ctl-val" id="compRatioVal">4.0:1</span>
-          </div>
-          <div class="control">
-            <span class="ctl-label">Attack</span>
-            <input type="range" id="compAttack" min="0" max="200" step="1" value="10" />
-            <span class="ctl-val" id="compAttackVal">10 ms</span>
-          </div>
-          <div class="control">
-            <span class="ctl-label">Release</span>
-            <input type="range" id="compRelease" min="20" max="1000" step="10" value="250" />
-            <span class="ctl-val" id="compReleaseVal">250 ms</span>
-          </div>
-          <div class="control">
-            <span class="ctl-label">Knee</span>
-            <input type="range" id="compKnee" min="0" max="40" step="1" value="24" />
-            <span class="ctl-val" id="compKneeVal">24 dB</span>
-          </div>
+          <div class="gr-meter"><div class="gr-fill" id="compGr"></div><span>gain reduction</span></div>
         </div>
-        <div class="gr-meter"><div class="gr-fill" id="compGr"></div><span>gain reduction</span></div>
-        <div class="max-section">
-          <div class="control">
-            <span class="ctl-label">Maximizer Gain</span>
-            <input type="range" id="maxGain" min="0" max="24" step="0.5" value="3" />
-            <span class="ctl-val" id="maxGainVal">+3.0 dB</span>
-          </div>
-          <div class="control">
-            <span class="ctl-label">Ceiling</span>
-            <input type="range" id="maxCeiling" min="-12" max="0" step="0.1" value="-0.3" />
-            <span class="ctl-val" id="maxCeilingVal">-0.3 dB</span>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <section class="panel preset-panel">
-      <span class="preset-label">Presets:</span>
-      <button class="btn btn-sm preset" data-preset="flat">Flat / Bypass</button>
-      <button class="btn btn-sm preset" data-preset="voice">Voice / Vlog</button>
-      <button class="btn btn-sm preset" data-preset="podcast">Podcast Warm</button>
-      <button class="btn btn-sm preset" data-preset="bright">Bright &amp; Loud</button>
-      <button class="btn btn-sm preset" data-preset="music">Music</button>
+      </div>
     </section>
-  </main>
 
-  <footer class="app-footer">
-    <p>All processing happens locally in your browser. Your videos never leave your device.</p>
-  </footer>
+    <!-- Master + tab selector -->
+    <section class="master-row">
+      <span class="master-icon">🔊</span>
+      <input type="range" id="masterGain" min="0" max="1.5" step="0.01" value="1" />
+    </section>
+
+    <nav class="tabs">
+      <button class="tab" data-tab="deesser">De-Esser</button>
+      <button class="tab active" data-tab="eq">EQ</button>
+      <button class="tab" data-tab="filters">Filters</button>
+      <button class="tab" data-tab="comp">Comp + Max</button>
+    </nav>
+  </div>
 
   <script src="js/audioEngine.js"></script>
   <script src="js/analyzer.js"></script>
