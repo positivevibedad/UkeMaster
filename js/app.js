@@ -128,7 +128,7 @@
       // Gain knob
       const g = document.createElement('div');
       g.className = 'knob';
-      g.dataset.min = -15; g.dataset.max = 15; g.dataset.step = 0.5;
+      g.dataset.min = -10; g.dataset.max = 10; g.dataset.step = 0.5;
       g.dataset.value = 0; g.dataset.default = 0;
       g.innerHTML = `
         <div class="knob-dial"><div class="knob-pointer"></div></div>
@@ -217,7 +217,7 @@
         let freq = Math.round(this.analyzer.xToFreq(clientX - rect.left));
         let gain = Math.round(this.analyzer.yToGain(clientY - rect.top) * 2) / 2;
         freq = Math.max(20, Math.min(20000, freq));
-        gain = Math.max(-15, Math.min(15, gain));
+        gain = Math.max(-10, Math.min(10, gain));
         this.engine.setEQBandFreq(i, freq);
         this.engine.setEQBand(i, gain);
         if (this.knobs[i]) this.knobs[i].set(gain, false); // sync knob, no feedback

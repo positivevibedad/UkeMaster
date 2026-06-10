@@ -10,6 +10,7 @@ class SpectrumAnalyzer {
     this.engine = engine;
     this.mode = 'both';     // 'bars' | 'line' | 'both'
     this.scale = 'log';     // 'log' | 'linear'
+    this.dbRange = 10;      // EQ/filter curve + node gain axis: +/-10 dB
     this.running = false;
     this.peaks = null;      // per-bar peak hold
     this.peakDecay = 0.9;
@@ -61,9 +62,9 @@ class SpectrumAnalyzer {
       ? minF * Math.pow(maxF / minF, frac)
       : minF + (maxF - minF) * frac;
   }
-  // Gain axis: +/-15 dB, 0 dB at vertical centre (matches the EQ curve).
-  gainToY(db) { return this.h / 2 - (db / 15) * (this.h / 2 - 6); }
-  yToGain(y) { return ((this.h / 2 - y) / (this.h / 2 - 6)) * 15; }
+  // Gain axis: +/-10 dB, 0 dB at vertical centre (matches the EQ curve).
+  gainToY(db) { return this.h / 2 - (db / this.dbRange) * (this.h / 2 - 6); }
+  yToGain(y) { return ((this.h / 2 - y) / (this.h / 2 - 6)) * this.dbRange; }
 
   _frame() {
     if (!this.running) return;
@@ -206,8 +207,8 @@ class SpectrumAnalyzer {
     }
     const mag = this.engine.getEQResponse(freqs);
 
-    // Map +/-15 dB onto the canvas height, 0 dB at vertical centre.
-    const dbRange = 15;
+    // Map the gain axis onto the canvas height, 0 dB at vertical centre.
+    const dbRange = this.dbRange;
     const mid = h / 2;
     ctx.save();
     ctx.beginPath();
@@ -261,7 +262,7 @@ class SpectrumAnalyzer {
     for (let i = 0; i < steps; i++) {
       const db = 20 * Math.log10(mag[i] + 1e-9);
       // Same dB axis as the EQ curve, clamped so steep roll-offs stay on screen.
-      let y = mid - (db / 15) * (h / 2 - 6);
+      let y = mid - (db / this.dbRange) * (h / 2 - 6);
       y = Math.max(0, Math.min(h, y));
       if (i === 0) ctx.moveTo(xs[i], y);
       else ctx.lineTo(xs[i], y);
