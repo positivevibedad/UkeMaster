@@ -263,10 +263,11 @@ input[type="range"]::-moz-range-thumb {
 .eq-q-row input[type="range"]::-webkit-slider-thumb { width: 12px; height: 12px; }
 .eq-q-val { font-size: 9px; color: var(--accent); font-variant-numeric: tabular-nums; width: 18px; text-align: right; }
 
-/* filters layout */
-.filter-body { gap: 22px; justify-content: center; }
+/* filters layout — High-Pass and Low-Pass side by side, each with a toggle */
+.filter-body { flex-direction: row; gap: 12px; justify-content: center; align-items: stretch; }
 .filter-col {
-  display: flex; flex-direction: column; gap: 10px;
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 12px;
   padding: 12px 14px; border-radius: 12px;
   background: rgba(255,255,255,0.02); border: 1px solid var(--line);
 }
