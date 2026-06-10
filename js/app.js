@@ -23,6 +23,20 @@
   // ---------------------------------------------------------------
   // File loading
   // ---------------------------------------------------------------
+  // Push every current control value into the (newly built) audio graph,
+  // so any tweaks made before a video was loaded take effect.
+  function syncEngineFromUI() {
+    document.querySelectorAll('input[type="range"]').forEach((el) => {
+      if (el.__update) el.__update();
+      else el.dispatchEvent(new Event('input'));
+    });
+    ['hpfOn', 'lpfOn', 'deEssOn', 'compOn'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.dispatchEvent(new Event('change'));
+    });
+    eqKnobs.forEach((k, i) => engine.setEQBand(i, k.value));
+  }
+
   function loadFile(file) {
     if (!file) return;
     const url = URL.createObjectURL(file);
@@ -32,7 +46,8 @@
     playerWrap.classList.remove('hidden');
     // Connect to the audio graph once metadata is ready.
     videoEl.addEventListener('loadedmetadata', () => {
-      engine.connectMediaElement(videoEl);
+      engine.connectMediaElement(videoEl); // builds the audio graph
+      syncEngineFromUI();                   // apply current control values
       if (!analyzer) {
         analyzer = new SpectrumAnalyzer(document.getElementById('spectrum'), engine);
         bindAnalyzerControls();
@@ -89,8 +104,7 @@
 
   // The bottom slider is the Maximizer: it drives makeup gain into the
   // soft-clip limiter, so pushing right raises loudness while the fixed
-  // ceiling holds the peaks. The limiter ceiling stays at a safe default.
-  engine.setMaximizer({ ceilingDb: -0.3 });
+  // ceiling (-0.3 dB, set when the graph is built) holds the peaks.
   UI.bindRange('maximizer', 'maximizerVal', (v) => engine.setMaximizer({ gainDb: v }), UI.fmtDb);
 
   // ---------------------------------------------------------------

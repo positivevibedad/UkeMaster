@@ -221,6 +221,7 @@ class AudioEngine {
 
   setHPF({ on, freq, q }) {
     const hpf = this.nodes.hpf;
+    if (!hpf) return;
     if (on !== undefined) this._hpfOn = on;
     if (freq !== undefined) hpf._userFreq = freq;
     if (q !== undefined) hpf._userQ = q;
@@ -233,6 +234,7 @@ class AudioEngine {
 
   setLPF({ on, freq, q }) {
     const lpf = this.nodes.lpf;
+    if (!lpf) return;
     if (on !== undefined) this._lpfOn = on;
     if (freq !== undefined) lpf._userFreq = freq;
     if (q !== undefined) lpf._userQ = q;
@@ -309,6 +311,7 @@ class AudioEngine {
 
   setCompressor({ on, threshold, ratio, attack, release, knee }) {
     const c = this.nodes.comp;
+    if (!c) return;
     if (threshold !== undefined) c.threshold.value = threshold;
     if (ratio !== undefined) c.ratio.value = ratio;
     if (attack !== undefined) c.attack.value = attack / 1000;
@@ -323,6 +326,7 @@ class AudioEngine {
   }
 
   setMaximizer({ gainDb, ceilingDb }) {
+    if (!this.nodes.maxGain) return;
     if (gainDb !== undefined) {
       this.nodes.maxGain.gain.value = this._dbToGain(gainDb);
     }
