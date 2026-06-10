@@ -49,7 +49,7 @@ class AudioEngine {
     hpf.frequency.value = 10;     // neutral
     hpf.Q.value = 0.0001;
     hpf._userFreq = 80;           // remembered cutoff when engaged
-    hpf._userQ = 0.7;
+    hpf._userQ = 0.7071;          // Butterworth — flat passband, no reso bump
     this._hpfOn = false;
 
     // --- Low-pass filter --- (starts neutralised; toggle defaults to off)
@@ -58,7 +58,7 @@ class AudioEngine {
     lpf.frequency.value = 22050;  // neutral
     lpf.Q.value = 0.0001;
     lpf._userFreq = 18000;
-    lpf._userQ = 0.7;
+    lpf._userQ = 0.7071;          // Butterworth — flat passband, no reso bump
     this._lpfOn = false;
 
     // --- Parametric EQ: 4 peaking bands in series, each with its own Q ---
