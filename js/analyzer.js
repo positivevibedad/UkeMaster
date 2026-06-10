@@ -155,8 +155,9 @@ class SpectrumAnalyzer {
       linePts.push([x + barW / 2, y]);
     }
 
-    // Live EQ response curve overlaid on the spectrum
+    // Live EQ + filter response curves overlaid on the spectrum
     this._drawEQCurve(ctx, w, h, nyquist);
+    this._drawFilterCurve(ctx, w, h, nyquist);
 
     if (this.mode === 'line') {
       ctx.beginPath();
@@ -232,6 +233,43 @@ class SpectrumAnalyzer {
     ctx.beginPath();
     ctx.moveTo(0, mid);
     ctx.lineTo(w, mid);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * Draws the combined HPF/LPF response as a live blue curve so you can see
+   * exactly what the filters are doing. Only shown when a filter is engaged.
+   */
+  _drawFilterCurve(ctx, w, h, nyquist) {
+    if (!this.engine.isFilterActive || !this.engine.isFilterActive()) return;
+    const minF = 20, maxF = Math.min(nyquist, 20000);
+    const steps = Math.min(256, Math.floor(w));
+    const freqs = new Float32Array(steps);
+    const xs = new Float32Array(steps);
+    for (let i = 0; i < steps; i++) {
+      const frac = i / (steps - 1);
+      freqs[i] = this.scale === 'log'
+        ? minF * Math.pow(maxF / minF, frac)
+        : minF + (maxF - minF) * frac;
+      xs[i] = frac * w;
+    }
+    const mag = this.engine.getFilterResponse(freqs);
+    const mid = h / 2;
+    ctx.save();
+    ctx.beginPath();
+    for (let i = 0; i < steps; i++) {
+      const db = 20 * Math.log10(mag[i] + 1e-9);
+      // Same dB axis as the EQ curve, clamped so steep roll-offs stay on screen.
+      let y = mid - (db / 15) * (h / 2 - 6);
+      y = Math.max(0, Math.min(h, y));
+      if (i === 0) ctx.moveTo(xs[i], y);
+      else ctx.lineTo(xs[i], y);
+    }
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(74,200,255,0.95)';
+    ctx.shadowColor = 'rgba(74,200,255,0.6)';
+    ctx.shadowBlur = 8;
     ctx.stroke();
     ctx.restore();
   }

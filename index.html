@@ -108,24 +108,17 @@
 
       <!-- Filters: HPF & LPF -->
       <div class="module-view" data-view="filters">
-        <div class="mv-head"><h3>High-Pass &amp; Low-Pass Filters</h3></div>
+        <div class="mv-head"><h3>Filters</h3></div>
         <div class="mv-body filter-body">
           <div class="filter-col">
             <div class="row-head">
               <span class="mod-label">High-Pass</span>
               <label class="switch"><input type="checkbox" id="hpfOn" /><span></span></label>
             </div>
-            <div class="slider-grid">
-              <div class="control">
-                <span class="ctl-label">Freq</span>
-                <input type="range" id="hpfFreq" min="20" max="2000" step="1" value="80" />
-                <span class="ctl-val" id="hpfFreqVal">80 Hz</span>
-              </div>
-              <div class="control">
-                <span class="ctl-label">Reso</span>
-                <input type="range" id="hpfQ" min="0.1" max="12" step="0.1" value="0.7" />
-                <span class="ctl-val" id="hpfQVal">0.7</span>
-              </div>
+            <div class="control">
+              <span class="ctl-label">Cutoff frequency</span>
+              <input type="range" id="hpfFreq" min="20" max="2000" step="1" value="80" />
+              <span class="ctl-val" id="hpfFreqVal">80 Hz</span>
             </div>
           </div>
           <div class="filter-col">
@@ -133,17 +126,10 @@
               <span class="mod-label">Low-Pass</span>
               <label class="switch"><input type="checkbox" id="lpfOn" /><span></span></label>
             </div>
-            <div class="slider-grid">
-              <div class="control">
-                <span class="ctl-label">Freq</span>
-                <input type="range" id="lpfFreq" min="1000" max="20000" step="10" value="18000" />
-                <span class="ctl-val" id="lpfFreqVal">18.0 kHz</span>
-              </div>
-              <div class="control">
-                <span class="ctl-label">Reso</span>
-                <input type="range" id="lpfQ" min="0.1" max="12" step="0.1" value="0.7" />
-                <span class="ctl-val" id="lpfQVal">0.7</span>
-              </div>
+            <div class="control">
+              <span class="ctl-label">Cutoff frequency</span>
+              <input type="range" id="lpfFreq" min="1000" max="20000" step="10" value="18000" />
+              <span class="ctl-val" id="lpfFreqVal">18.0 kHz</span>
             </div>
           </div>
         </div>

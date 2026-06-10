@@ -66,7 +66,7 @@ class AudioEngine {
       const band = ctx.createBiquadFilter();
       band.type = 'peaking';
       band.frequency.value = b.freq;
-      band.Q.value = 1.5;
+      band.Q.value = 1.0;
       band.gain.value = 0;
       return band;
     });
@@ -265,11 +265,28 @@ class AudioEngine {
   }
 
   getEQBandQ(index) {
-    return this.eqBands[index] ? this.eqBands[index].Q.value : 1.5;
+    return this.eqBands[index] ? this.eqBands[index].Q.value : 1.0;
   }
 
   resetEQ() {
-    this.eqBands.forEach((b) => { b.gain.value = 0; b.Q.value = 1.5; });
+    this.eqBands.forEach((b) => { b.gain.value = 0; b.Q.value = 1.0; });
+  }
+
+  /** True when either filter is engaged (used to draw the filter curve). */
+  isFilterActive() { return !!(this._hpfOn || this._lpfOn); }
+
+  /** Combined magnitude response of HPF * LPF over the given frequencies. */
+  getFilterResponse(freqArray) {
+    const n = freqArray.length;
+    const total = new Float32Array(n).fill(1);
+    const mag = new Float32Array(n);
+    const phase = new Float32Array(n);
+    [this.nodes.hpf, this.nodes.lpf].forEach((f) => {
+      if (!f) return;
+      f.getFrequencyResponse(freqArray, mag, phase);
+      for (let i = 0; i < n; i++) total[i] *= mag[i];
+    });
+    return total;
   }
 
   /**

@@ -145,10 +145,10 @@
       qLabel.textContent = 'Q';
       const qInput = document.createElement('input');
       qInput.type = 'range';
-      qInput.min = 1; qInput.max = 5; qInput.step = 0.1; qInput.value = 1.5;
+      qInput.min = 1; qInput.max = 5; qInput.step = 0.1; qInput.value = 1.0;
       const qVal = document.createElement('span');
       qVal.className = 'eq-q-val';
-      qVal.textContent = '1.5';
+      qVal.textContent = '1.0';
       qRow.append(qLabel, qInput, qVal);
       col.appendChild(qRow);
 
@@ -169,7 +169,7 @@
 
   document.getElementById('eqReset').addEventListener('click', () => {
     eqKnobs.forEach((k) => k.set(0, true));
-    eqQInputs.forEach((_, i) => applyQ(i, 1.5));
+    eqQInputs.forEach((_, i) => applyQ(i, 1.0));
   });
 
   // ---------------------------------------------------------------
@@ -264,10 +264,8 @@
   // ---------------------------------------------------------------
   UI.bindCheckbox('hpfOn', (on) => engine.setHPF({ on }));
   UI.bindRange('hpfFreq', 'hpfFreqVal', (v) => engine.setHPF({ freq: v }), UI.fmtHz);
-  UI.bindRange('hpfQ', 'hpfQVal', (v) => engine.setHPF({ q: v }), UI.fmtNum);
   UI.bindCheckbox('lpfOn', (on) => engine.setLPF({ on }));
   UI.bindRange('lpfFreq', 'lpfFreqVal', (v) => engine.setLPF({ freq: v }), UI.fmtHz);
-  UI.bindRange('lpfQ', 'lpfQVal', (v) => engine.setLPF({ q: v }), UI.fmtNum);
 
   // ---------------------------------------------------------------
   // De-Esser
@@ -285,7 +283,12 @@
   UI.bindRange('compRatio', 'compRatioVal', (v) => engine.setCompressor({ ratio: v }), UI.fmtRatio);
   UI.bindRange('compAttack', 'compAttackVal', (v) => engine.setCompressor({ attack: v }), UI.fmtMs);
   UI.bindRange('compRelease', 'compReleaseVal', (v) => engine.setCompressor({ release: v }), UI.fmtMs);
-  UI.bindRange('compKnee', 'compKneeVal', (v) => engine.setCompressor({ knee: v }), UI.fmtDbInt);
+  UI.bindRange('compKnee', 'compKneeVal', (v) => engine.setCompressor({ knee: v }), fmtKnee);
+  // 0 dB = a sharp "hard knee"; 20 dB+ = a gentle "soft knee".
+  function fmtKnee(v) {
+    const lbl = v <= 0 ? 'Hard' : v >= 20 ? 'Soft' : '';
+    return lbl ? `${lbl} · ${v} dB` : `${v} dB`;
+  }
 
   // ---------------------------------------------------------------
   // Gain-reduction meters (driven from a small RAF loop)
