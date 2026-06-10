@@ -276,20 +276,39 @@ class AudioEngine {
   /** True when either filter is engaged (used to draw the filter curve). */
   isFilterActive() { return !!(this._hpfOn || this._lpfOn); }
 
-  /** Combined magnitude response of the *engaged* filters only. */
+  /**
+   * Combined magnitude response of the *engaged* filters only, computed
+   * analytically (RBJ biquad, locked Butterworth Q) rather than via the
+   * browser's getFrequencyResponse — guarantees a flat, bump-free curve.
+   */
   getFilterResponse(freqArray) {
+    const fs = this.ctx ? this.ctx.sampleRate : 48000;
+    const Q = 0.7071;
     const n = freqArray.length;
     const total = new Float32Array(n).fill(1);
-    const mag = new Float32Array(n);
-    const phase = new Float32Array(n);
-    const active = [];
-    if (this._hpfOn && this.nodes.hpf) active.push(this.nodes.hpf);
-    if (this._lpfOn && this.nodes.lpf) active.push(this.nodes.lpf);
-    active.forEach((f) => {
-      f.getFrequencyResponse(freqArray, mag, phase);
-      for (let i = 0; i < n; i++) total[i] *= mag[i];
-    });
+    const apply = (type, f0) => {
+      for (let i = 0; i < n; i++) {
+        total[i] *= this._biquadMag(type, f0, Q, freqArray[i], fs);
+      }
+    };
+    if (this._hpfOn && this.nodes.hpf) apply('hp', this.nodes.hpf.frequency.value);
+    if (this._lpfOn && this.nodes.lpf) apply('lp', this.nodes.lpf.frequency.value);
     return total;
+  }
+
+  /** Magnitude of an RBJ low/high-pass biquad at frequency f (linear). */
+  _biquadMag(type, f0, Q, f, fs) {
+    const w0 = 2 * Math.PI * f0 / fs, c = Math.cos(w0), s = Math.sin(w0);
+    const alpha = s / (2 * Q);
+    let b0, b1, b2;
+    const a0 = 1 + alpha, a1 = -2 * c, a2 = 1 - alpha;
+    if (type === 'hp') { b0 = (1 + c) / 2; b1 = -(1 + c); b2 = (1 + c) / 2; }
+    else { b0 = (1 - c) / 2; b1 = 1 - c; b2 = (1 - c) / 2; }
+    const w = 2 * Math.PI * f / fs;
+    const cw = Math.cos(w), sw = Math.sin(w), c2 = Math.cos(2 * w), s2 = Math.sin(2 * w);
+    const nRe = b0 + b1 * cw + b2 * c2, nIm = -(b1 * sw + b2 * s2);
+    const dRe = a0 + a1 * cw + a2 * c2, dIm = -(a1 * sw + a2 * s2);
+    return Math.sqrt((nRe * nRe + nIm * nIm) / (dRe * dRe + dIm * dIm));
   }
 
   /**
