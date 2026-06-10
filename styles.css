@@ -217,8 +217,12 @@ input[type="range"]::-moz-range-thumb {
 
 /* EQ knobs */
 .eq-body { flex-direction: row; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
-.eq-knobs { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-#eqQKnob { margin-left: 6px; padding-left: 14px; border-left: 1px solid var(--line); }
+.eq-knobs { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.eq-band {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 4px; border-radius: 12px; background: rgba(255,255,255,0.02);
+  border: 1px solid var(--line);
+}
 .knob {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   cursor: ns-resize; user-select: none; padding: 4px;
@@ -242,6 +246,12 @@ input[type="range"]::-moz-range-thumb {
 .knob-label { font-size: 11.5px; font-weight: 600; }
 .knob-sub { font-size: 10px; color: var(--muted); }
 .knob-val { font-size: 11px; color: var(--accent); font-variant-numeric: tabular-nums; }
+
+/* smaller Q knob beneath each EQ gain knob */
+.knob-sm .knob-dial { width: 40px; height: 40px; }
+.knob-sm .knob-pointer { height: 12px; top: 5px; }
+.knob-sm .knob-label { font-size: 10px; color: var(--muted); }
+.knob-sm .knob-val { font-size: 10px; }
 
 /* filters layout */
 .filter-body { gap: 22px; }

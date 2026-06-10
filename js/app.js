@@ -7,7 +7,7 @@
   let analyzer = null;
   let eqNodes = null;
   const eqKnobs = [];
-  let eqQKnob = null;
+  const eqQKnobs = [];
 
   // --- Elements ---
   const fileInput = document.getElementById('fileInput');
@@ -38,7 +38,7 @@
         analyzer.start();
         // Draggable EQ nodes live on top of the spectrum and stay aligned
         // with it via the analyzer's coordinate mapping.
-        eqNodes = new EQNodes(document.getElementById('eqNodes'), engine, analyzer, eqKnobs);
+        eqNodes = new EQNodes(document.getElementById('eqNodes'), engine, analyzer, eqKnobs, eqQKnobs);
         analyzer.onLayout = () => eqNodes.layoutAll();
         eqNodes.layoutAll();
       }
@@ -77,7 +77,13 @@
     if (videoEl.paused) videoEl.play();
     else videoEl.pause();
   });
-  videoEl.addEventListener('play', () => { playBtn.textContent = '⏸'; });
+  videoEl.addEventListener('play', () => {
+    // Resume the graph no matter which control started playback, so the
+    // analyzer always reacts to the audio (autoplay policy can leave the
+    // AudioContext suspended otherwise — especially on iOS).
+    engine.ensureContext();
+    playBtn.textContent = '⏸';
+  });
   videoEl.addEventListener('pause', () => { playBtn.textContent = '▶'; });
 
   UI.bindRange('masterGain', null, (v) => engine.setMasterGain(v));
@@ -88,33 +94,50 @@
   function buildEQ() {
     const wrap = document.getElementById('eqKnobs');
     EQ_BANDS.forEach((band, i) => {
-      const el = document.createElement('div');
-      el.className = 'knob';
-      el.dataset.min = -15;
-      el.dataset.max = 15;
-      el.dataset.step = 0.5;
-      el.dataset.value = 0;
-      el.dataset.default = 0;
-      el.innerHTML = `
+      const col = document.createElement('div');
+      col.className = 'eq-band';
+
+      // Gain knob
+      const g = document.createElement('div');
+      g.className = 'knob';
+      g.dataset.min = -15; g.dataset.max = 15; g.dataset.step = 0.5;
+      g.dataset.value = 0; g.dataset.default = 0;
+      g.innerHTML = `
         <div class="knob-dial"><div class="knob-pointer"></div></div>
         <span class="knob-label">${band.label}</span>
         <span class="knob-sub">${UI.fmtHz(band.freq)}</span>
         <span class="knob-val">0.0 dB</span>`;
-      wrap.appendChild(el);
-      const knob = new Knob(el, (v) => {
+      col.appendChild(g);
+
+      // Per-band Q knob
+      const q = document.createElement('div');
+      q.className = 'knob knob-sm';
+      q.dataset.min = 1; q.dataset.max = 5; q.dataset.step = 0.1;
+      q.dataset.value = 1.5; q.dataset.default = 1.5;
+      q.innerHTML = `
+        <div class="knob-dial"><div class="knob-pointer"></div></div>
+        <span class="knob-label">Q</span>
+        <span class="knob-val">1.5</span>`;
+      col.appendChild(q);
+
+      wrap.appendChild(col);
+
+      const gainKnob = new Knob(g, (v) => {
         engine.setEQBand(i, v);
         if (eqNodes) eqNodes.layout(i);   // keep the analyzer node in sync
       });
-      knob.setFormatter(UI.fmtDb);
-      eqKnobs.push(knob);
-    });
+      gainKnob.setFormatter(UI.fmtDb);
+      eqKnobs.push(gainKnob);
 
-    eqQKnob = new Knob(document.getElementById('eqQKnob'), (v) => engine.setEQQ(v));
-    eqQKnob.setFormatter(UI.fmtNum);
+      const qKnob = new Knob(q, (v) => engine.setEQBandQ(i, v));
+      qKnob.setFormatter(UI.fmtNum);
+      eqQKnobs.push(qKnob);
+    });
   }
 
   document.getElementById('eqReset').addEventListener('click', () => {
     eqKnobs.forEach((k) => k.set(0, true));
+    eqQKnobs.forEach((k) => k.set(1.5, true));
   });
 
   // ---------------------------------------------------------------
@@ -122,11 +145,12 @@
   //   horizontal drag = pick frequency, vertical drag = boost / cut
   // ---------------------------------------------------------------
   class EQNodes {
-    constructor(container, engine, analyzer, knobs) {
+    constructor(container, engine, analyzer, knobs, qKnobs) {
       this.container = container;
       this.engine = engine;
       this.analyzer = analyzer;
       this.knobs = knobs;
+      this.qKnobs = qKnobs;
       this.handles = EQ_BANDS.map((band, i) => {
         const h = document.createElement('div');
         h.className = 'eq-node';
@@ -189,6 +213,14 @@
       };
       h.addEventListener('mousedown', down);
       h.addEventListener('touchstart', down, { passive: false });
+      // scroll over a node to tighten / widen its Q (bandwidth)
+      h.addEventListener('wheel', (e) => {
+        const next = Math.max(1, Math.min(5,
+          this.engine.getEQBandQ(i) + (e.deltaY < 0 ? 0.1 : -0.1)));
+        this.engine.setEQBandQ(i, next);
+        if (this.qKnobs[i]) this.qKnobs[i].set(next, false);
+        e.preventDefault();
+      }, { passive: false });
       // double-tap resets this band's gain (keeps the chosen frequency)
       h.addEventListener('dblclick', () => {
         this.engine.setEQBand(i, 0);
@@ -303,7 +335,7 @@
     if (!p) return;
     // EQ
     p.eq.forEach((g, i) => eqKnobs[i] && eqKnobs[i].set(g, true));
-    if (eqQKnob && p.q != null) eqQKnob.set(p.q, true);
+    if (p.q != null) eqQKnobs.forEach((k) => k.set(p.q, true));
     // HPF
     setControl('hpfOn', p.hpf.on);
     if (p.hpf.freq != null) setControl('hpfFreq', p.hpf.freq);

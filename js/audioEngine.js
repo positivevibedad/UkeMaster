@@ -61,13 +61,12 @@ class AudioEngine {
     lpf._userQ = 0.7;
     this._lpfOn = false;
 
-    // --- Parametric EQ: 4 peaking bands in series, shared Q ---
-    this._eqQ = 1.5;
+    // --- Parametric EQ: 4 peaking bands in series, each with its own Q ---
     this.eqBands = EQ_BANDS.map((b) => {
       const band = ctx.createBiquadFilter();
       band.type = 'peaking';
       band.frequency.value = b.freq;
-      band.Q.value = this._eqQ;
+      band.Q.value = 1.5;
       band.gain.value = 0;
       return band;
     });
@@ -259,13 +258,16 @@ class AudioEngine {
     return this.eqBands[index] ? this.eqBands[index].gain.value : 0;
   }
 
-  setEQQ(q) {
-    this._eqQ = q;
-    this.eqBands.forEach((b) => { b.Q.value = q; });
+  setEQBandQ(index, q) {
+    if (this.eqBands[index]) this.eqBands[index].Q.value = q;
+  }
+
+  getEQBandQ(index) {
+    return this.eqBands[index] ? this.eqBands[index].Q.value : 1.5;
   }
 
   resetEQ() {
-    this.eqBands.forEach((b) => { b.gain.value = 0; });
+    this.eqBands.forEach((b) => { b.gain.value = 0; b.Q.value = 1.5; });
   }
 
   /**
