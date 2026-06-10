@@ -437,6 +437,78 @@ class AudioEngine {
   getRecordStream() {
     return this.recordDest ? this.recordDest.stream : null;
   }
+
+  // ---- Offline render (for export) ----
+  // Re-creates the current effect chain in an OfflineAudioContext and renders
+  // the whole audio buffer through it, using the live parameter values. Faster
+  // than real time and sample-accurate (no playback needed).
+  async renderOffline(audioBuffer) {
+    const oc = new OfflineAudioContext(
+      audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
+    const src = oc.createBufferSource();
+    src.buffer = audioBuffer;
+    let node = src;
+
+    const biquad = (type, freq, q, gainDb) => {
+      const b = oc.createBiquadFilter();
+      b.type = type; b.frequency.value = freq; b.Q.value = q;
+      if (gainDb !== undefined) b.gain.value = gainDb;
+      node.connect(b); node = b;
+    };
+
+    // Filters (mirror slope: one stage for 12, two for 24 dB/oct)
+    if (this._hpfOn) {
+      const f = this.nodes.hpf._userFreq;
+      biquad('highpass', f, 0.7071);
+      if (this._hpfSlope === 24) biquad('highpass', f, 0.7071);
+    }
+    if (this._lpfOn) {
+      const f = this.nodes.lpf._userFreq;
+      biquad('lowpass', f, 0.7071);
+      if (this._lpfSlope === 24) biquad('lowpass', f, 0.7071);
+    }
+    // EQ (gain 0 bands are transparent)
+    this.eqBands.forEach((b) =>
+      biquad('peaking', b.frequency.value, b.Q.value, b.gain.value));
+
+    // De-esser (split-band) when engaged
+    if (this.nodes.deEss && this.nodes.deEss._on) {
+      const input = node;
+      const out = oc.createGain();
+      const fq = this.nodes.deEss.low.frequency.value;
+      const low = oc.createBiquadFilter(); low.type = 'lowpass'; low.frequency.value = fq; low.Q.value = 0.5;
+      const high = oc.createBiquadFilter(); high.type = 'highpass'; high.frequency.value = fq; high.Q.value = 0.5;
+      const dc = oc.createDynamicsCompressor();
+      const ld = this.nodes.deEss.comp;
+      dc.threshold.value = ld.threshold.value; dc.ratio.value = ld.ratio.value;
+      dc.attack.value = ld.attack.value; dc.release.value = ld.release.value; dc.knee.value = ld.knee.value;
+      input.connect(low); low.connect(out);
+      input.connect(high); high.connect(dc); dc.connect(out);
+      node = out;
+    }
+
+    // Compressor
+    if (this._compOn) {
+      const c = oc.createDynamicsCompressor();
+      const lc = this.nodes.comp;
+      c.threshold.value = lc.threshold.value; c.ratio.value = lc.ratio.value;
+      c.attack.value = lc.attack.value; c.release.value = lc.release.value; c.knee.value = lc.knee.value;
+      node.connect(c); node = c;
+    }
+
+    // Maximizer gain → soft-clip limiter (same ceiling as live)
+    const mg = oc.createGain();
+    mg.gain.value = this.nodes.maxGain.gain.value;
+    node.connect(mg);
+    const lim = oc.createWaveShaper();
+    lim.curve = this._makeLimiterCurve(this._ceilingGain);
+    lim.oversample = '4x';
+    mg.connect(lim);
+    lim.connect(oc.destination);
+
+    src.start();
+    return oc.startRendering();
+  }
 }
 
 window.AudioEngine = AudioEngine;

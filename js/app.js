@@ -50,6 +50,7 @@
     if (!file) return;
     const url = URL.createObjectURL(file);
     videoEl.src = url;
+    currentFile = file;
     currentFileName = file.name;
     fileName.textContent = file.name;
     dropZone.classList.add('hidden');
@@ -466,9 +467,10 @@
   // ---------------------------------------------------------------
   // Recording the processed mix
   // ---------------------------------------------------------------
-  let recorder = null, chunks = [];
-  const recordBtn = document.getElementById('recordBtn');
+  const exportBtn = document.getElementById('recordBtn');   // now the Export button
   const downloadLink = document.getElementById('downloadLink');
+  let currentFile = null;     // the loaded File, needed to mux the video
+  let exporting = false;
 
   // Transient status shown in the analyzer's filename slot.
   let statusTimer = null;
@@ -480,56 +482,56 @@
     if (restoreMs) statusTimer = setTimeout(() => { el.textContent = currentFileName; }, restoreMs);
   }
 
-  function pickMime() {
-    const types = ['audio/webm;codecs=opus', 'audio/webm',
-      'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'];
-    for (const t of types) {
-      if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) return t;
-    }
-    return '';
-  }
-
-  recordBtn.addEventListener('click', () => {
-    if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
-    const stream = engine.getRecordStream();
-    if (!stream) return;
-    chunks = [];
-    const mime = pickMime();
+  // Full export pipeline: decode original audio → render the effect chain
+  // offline → normalize to −13 LUFS / −0.5 dBTP → bake into the video (mp4).
+  exportBtn.addEventListener('click', async () => {
+    if (exporting || !currentFile) return;
+    exporting = true;
+    exportBtn.disabled = true;
+    downloadLink.classList.add('hidden');
+    let wavBlob = null, info = null;
     try {
-      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-    } catch (e) { recorder = new MediaRecorder(stream); }
+      setStatus('Decoding audio…');
+      const buf = await currentFile.arrayBuffer();
+      const decoded = await engine.ctx.decodeAudioData(buf.slice(0));
 
-    recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    recorder.onstop = async () => {
-      recordBtn.textContent = '●';
-      recordBtn.classList.remove('recording');
-      recordBtn.disabled = true;
-      const raw = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+      setStatus('Rendering effects…');
+      const processed = await engine.renderOffline(decoded);
+
       setStatus('Normalizing to −13 LUFS…');
-      try {
-        const { wavBlob, info } = await Loudness.normalizeBlob(raw, engine.ctx,
-          { targetLUFS: -13, ceilingDbTP: -0.5 });
+      const norm = await Loudness.normalizeAudioBuffer(processed,
+        { targetLUFS: -13, ceilingDbTP: -0.5 });
+      info = norm.info;
+      wavBlob = Loudness.encodeWAV(norm.buffer);
+
+      // Bake the normalized audio into the original video.
+      const mp4 = await VideoExport.mux(currentFile, wavBlob, {
+        onStatus: (m) => setStatus(m),
+        onProgress: (r) => setStatus(`Muxing video… ${Math.round((r || 0) * 100)}%`),
+      });
+      downloadLink.href = URL.createObjectURL(mp4);
+      downloadLink.download = 'ukemaster-export.mp4';
+      downloadLink.title = `Video + audio mastered to −13 LUFS / −0.5 dBTP `
+        + `(measured ${info.inLUFS.toFixed(1)} LUFS, ${info.gainDb >= 0 ? '+' : ''}`
+        + `${info.gainDb.toFixed(1)} dB, peak ${info.outTP.toFixed(1)} dBTP)`;
+      downloadLink.classList.remove('hidden');
+      setStatus(`✓ Video ready: −13 LUFS · peak ${info.outTP.toFixed(1)} dBTP`, 9000);
+    } catch (err) {
+      // If muxing fails (browser/memory), still offer the mastered audio WAV.
+      if (wavBlob) {
         downloadLink.href = URL.createObjectURL(wavBlob);
         downloadLink.download = 'ukemaster-mix-13LUFS.wav';
+        downloadLink.title = info
+          ? `Mastered audio −13 LUFS / ${info.outTP.toFixed(1)} dBTP (video mux unavailable here)`
+          : 'Mastered audio';
         downloadLink.classList.remove('hidden');
-        downloadLink.title = `Mastered to −13 LUFS / −0.5 dBTP `
-          + `(measured ${info.inLUFS.toFixed(1)} LUFS, applied ${info.gainDb >= 0 ? '+' : ''}`
-          + `${info.gainDb.toFixed(1)} dB, peak ${info.outTP.toFixed(1)} dBTP)`;
-        setStatus(`✓ Mastered: −13 LUFS · peak ${info.outTP.toFixed(1)} dBTP`, 7000);
-      } catch (err) {
-        // Fallback: offer the raw capture if decode/normalize isn't supported.
-        downloadLink.href = URL.createObjectURL(raw);
-        downloadLink.download = 'ukemaster-mix' + (raw.type.includes('mp4') ? '.mp4' : '.webm');
-        downloadLink.classList.remove('hidden');
-        setStatus('Exported (loudness normalize unavailable here)', 7000);
+        setStatus('Video export unavailable here — saved mastered audio (WAV)', 9000);
+      } else {
+        setStatus('Export failed on this browser/file', 7000);
       }
-      recordBtn.disabled = false;
-    };
-
-    recorder.start();
-    recordBtn.textContent = '■';
-    recordBtn.classList.add('recording');
-    if (videoEl.paused) videoEl.play();
+    }
+    exportBtn.disabled = false;
+    exporting = false;
   });
 
   // ---------------------------------------------------------------

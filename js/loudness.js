@@ -140,40 +140,39 @@
   }
 
   /**
-   * Decode a recorded blob, normalize it to targetLUFS with a true-peak
-   * ceiling, and return { wavBlob, info }.
+   * Normalize an AudioBuffer in place to targetLUFS with a true-peak ceiling.
+   * Returns { buffer, info }.
    */
-  async function normalizeBlob(blob, audioCtx, { targetLUFS = -13, ceilingDbTP = -0.5 } = {}) {
-    const arr = await blob.arrayBuffer();
-    const decoded = await audioCtx.decodeAudioData(arr);
-
-    // Measure integrated loudness at 48 kHz.
+  async function normalizeAudioBuffer(decoded, { targetLUFS = -13, ceilingDbTP = -0.5 } = {}) {
     const ch48 = await resampleChannels(decoded, 48000);
     const inLUFS = integratedLUFS(ch48, 48000);
     if (!isFinite(inLUFS)) {
-      return { wavBlob: encodeWAV(decoded), info: { inLUFS: -Infinity, gainDb: 0, outTP: await truePeakDb(decoded), note: 'silent / unmeasurable' } };
+      return { buffer: decoded, info: { inLUFS: -Infinity, gainDb: 0, outTP: await truePeakDb(decoded), targetLUFS, ceilingDbTP, note: 'silent / unmeasurable' } };
     }
-
-    // Loudness gain to hit the target.
     let gainDb = targetLUFS - inLUFS;
     applyGain(decoded, gainDb);
-
-    // True-peak protection: if over ceiling, pull down so peaks are safe.
     let tp = await truePeakDb(decoded);
     if (tp > ceilingDbTP) {
-      const reduce = ceilingDbTP - tp;     // negative
+      const reduce = ceilingDbTP - tp;   // negative
       applyGain(decoded, reduce);
       gainDb += reduce;
       tp = ceilingDbTP;
     }
-
-    return {
-      wavBlob: encodeWAV(decoded),
-      info: { inLUFS, gainDb, outLUFS: targetLUFS + Math.min(0, 0), outTP: tp, targetLUFS, ceilingDbTP },
-    };
+    return { buffer: decoded, info: { inLUFS, gainDb, outTP: tp, targetLUFS, ceilingDbTP } };
   }
 
-  const api = { integratedLUFS, kWeight, encodeWAV, normalizeBlob, truePeakDb, resampleChannels };
+  /**
+   * Decode a recorded blob, normalize to targetLUFS with a true-peak ceiling,
+   * and return { wavBlob, info }.
+   */
+  async function normalizeBlob(blob, audioCtx, opts = {}) {
+    const arr = await blob.arrayBuffer();
+    const decoded = await audioCtx.decodeAudioData(arr);
+    const { buffer, info } = await normalizeAudioBuffer(decoded, opts);
+    return { wavBlob: encodeWAV(buffer), info };
+  }
+
+  const api = { integratedLUFS, kWeight, encodeWAV, normalizeBlob, normalizeAudioBuffer, truePeakDb, resampleChannels };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.Loudness = api;
 })();
