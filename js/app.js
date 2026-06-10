@@ -6,6 +6,7 @@
   const engine = new AudioEngine();
   let analyzer = null;
   let eqNodes = null;
+  let currentFileName = '';
   const eqKnobs = [];
   const eqQInputs = [];
   const eqQVals = [];
@@ -49,6 +50,7 @@
     if (!file) return;
     const url = URL.createObjectURL(file);
     videoEl.src = url;
+    currentFileName = file.name;
     fileName.textContent = file.name;
     dropZone.classList.add('hidden');
     playerWrap.classList.remove('hidden');
@@ -468,27 +470,64 @@
   const recordBtn = document.getElementById('recordBtn');
   const downloadLink = document.getElementById('downloadLink');
 
-  recordBtn.addEventListener('click', () => {
-    if (recorder && recorder.state === 'recording') {
-      recorder.stop();
-      return;
+  // Transient status shown in the analyzer's filename slot.
+  let statusTimer = null;
+  function setStatus(msg, restoreMs) {
+    const el = document.getElementById('fileName');
+    if (!el) return;
+    if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    el.textContent = msg;
+    if (restoreMs) statusTimer = setTimeout(() => { el.textContent = currentFileName; }, restoreMs);
+  }
+
+  function pickMime() {
+    const types = ['audio/webm;codecs=opus', 'audio/webm',
+      'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'];
+    for (const t of types) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) return t;
     }
+    return '';
+  }
+
+  recordBtn.addEventListener('click', () => {
+    if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
     const stream = engine.getRecordStream();
     if (!stream) return;
     chunks = [];
-    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus' : 'audio/webm';
-    recorder = new MediaRecorder(stream, { mimeType: mime });
-    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'audio/webm' });
-      downloadLink.href = URL.createObjectURL(blob);
-      downloadLink.classList.remove('hidden');
-      recordBtn.textContent = '● Record Mix';
+    const mime = pickMime();
+    try {
+      recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    } catch (e) { recorder = new MediaRecorder(stream); }
+
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = async () => {
+      recordBtn.textContent = '●';
       recordBtn.classList.remove('recording');
+      recordBtn.disabled = true;
+      const raw = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+      setStatus('Normalizing to −13 LUFS…');
+      try {
+        const { wavBlob, info } = await Loudness.normalizeBlob(raw, engine.ctx,
+          { targetLUFS: -13, ceilingDbTP: -0.5 });
+        downloadLink.href = URL.createObjectURL(wavBlob);
+        downloadLink.download = 'ukemaster-mix-13LUFS.wav';
+        downloadLink.classList.remove('hidden');
+        downloadLink.title = `Mastered to −13 LUFS / −0.5 dBTP `
+          + `(measured ${info.inLUFS.toFixed(1)} LUFS, applied ${info.gainDb >= 0 ? '+' : ''}`
+          + `${info.gainDb.toFixed(1)} dB, peak ${info.outTP.toFixed(1)} dBTP)`;
+        setStatus(`✓ Mastered: −13 LUFS · peak ${info.outTP.toFixed(1)} dBTP`, 7000);
+      } catch (err) {
+        // Fallback: offer the raw capture if decode/normalize isn't supported.
+        downloadLink.href = URL.createObjectURL(raw);
+        downloadLink.download = 'ukemaster-mix' + (raw.type.includes('mp4') ? '.mp4' : '.webm');
+        downloadLink.classList.remove('hidden');
+        setStatus('Exported (loudness normalize unavailable here)', 7000);
+      }
+      recordBtn.disabled = false;
     };
+
     recorder.start();
-    recordBtn.textContent = '■ Stop';
+    recordBtn.textContent = '■';
     recordBtn.classList.add('recording');
     if (videoEl.paused) videoEl.play();
   });
