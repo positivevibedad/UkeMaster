@@ -438,6 +438,56 @@ class AudioEngine {
     return this.recordDest ? this.recordDest.stream : null;
   }
 
+  // ---- Real-time capture (FFmpeg-free export fallback) ----
+  // Records the fully-processed signal (post-maximizer, pre master volume —
+  // same tap point as renderOffline) straight into Float32 buffers while the
+  // video plays. Used when the source container can't be decoded offline
+  // (e.g. some iPhone .mov files) so we never need ffmpeg.wasm, which won't
+  // load on iOS Safari. Call startCapture(), play the video to the end, then
+  // stopCapture() to get the rendered AudioBuffer.
+  startCapture() {
+    const ctx = this.ctx;
+    const tap = this.nodes.limiter;            // fully processed, unity level
+    const sp = ctx.createScriptProcessor(4096, 2, 2);
+    const left = [], right = [];
+    sp.onaudioprocess = (e) => {
+      const ib = e.inputBuffer;
+      const l = ib.getChannelData(0);
+      const r = ib.numberOfChannels > 1 ? ib.getChannelData(1) : l;
+      left.push(new Float32Array(l));
+      right.push(new Float32Array(r));
+    };
+    tap.connect(sp);
+    // A ScriptProcessor only runs while connected to a destination; route it
+    // through a silent gain so capturing adds no extra monitoring sound.
+    const sink = ctx.createGain();
+    sink.gain.value = 0;
+    sp.connect(sink);
+    sink.connect(ctx.destination);
+    this._capture = { sp, sink, tap, left, right, sampleRate: ctx.sampleRate };
+  }
+
+  stopCapture() {
+    const c = this._capture;
+    this._capture = null;
+    if (!c) return null;
+    c.sp.onaudioprocess = null;
+    try { c.tap.disconnect(c.sp); } catch (e) {}
+    try { c.sp.disconnect(); } catch (e) {}
+    try { c.sink.disconnect(); } catch (e) {}
+    const len = c.left.reduce((n, a) => n + a.length, 0);
+    if (!len) return null;
+    const buf = this.ctx.createBuffer(2, len, c.sampleRate);
+    const L = buf.getChannelData(0), R = buf.getChannelData(1);
+    let off = 0;
+    for (let i = 0; i < c.left.length; i++) {
+      L.set(c.left[i], off);
+      R.set(c.right[i], off);
+      off += c.left[i].length;
+    }
+    return buf;
+  }
+
   // ---- Offline render (for export) ----
   // Re-creates the current effect chain in an OfflineAudioContext and renders
   // the whole audio buffer through it, using the live parameter values. Faster

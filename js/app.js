@@ -496,11 +496,21 @@
     exportBtn.disabled = true;
     downloadLink.classList.add('hidden');
     try {
-      setStatus('Decoding audio…');
-      const decoded = await decodeOriginalAudio(currentFile);
-
-      setStatus('Rendering effects…');
-      const processed = await engine.renderOffline(decoded);
+      let processed;
+      try {
+        // Fast path: decode the source offline and render the chain.
+        setStatus('Decoding audio…');
+        const decoded = await decodeOriginalAudio(currentFile);
+        setStatus('Rendering effects…');
+        processed = await engine.renderOffline(decoded);
+      } catch (decodeErr) {
+        // The browser couldn't decode this container (common for iPhone .mov).
+        // Fall back to a real-time capture of the live processed graph — no
+        // ffmpeg.wasm, so it works on iOS Safari.
+        console.warn('Offline decode failed; capturing in real time:', decodeErr);
+        processed = await captureProcessedRealtime((r) =>
+          setStatus(`Capturing audio (real-time)… ${Math.round((r || 0) * 100)}%`));
+      }
 
       setStatus('Normalizing to −13 LUFS…');
       const norm = await Loudness.normalizeAudioBuffer(processed,
@@ -524,19 +534,50 @@
     exporting = false;
   });
 
-  // Decode the original file's audio. Try the browser first; if it can't read
-  // the container/codec (common for .mov on some browsers), fall back to
-  // extracting a WAV with FFmpeg and decoding that.
+  // Decode the original file's audio with the browser. Throws if it can't read
+  // the container/codec (common for iPhone .mov) — the caller then falls back
+  // to a real-time capture, which avoids ffmpeg.wasm (broken on iOS Safari).
   async function decodeOriginalAudio(file) {
-    try {
-      const buf = await file.arrayBuffer();
-      return await engine.ctx.decodeAudioData(buf.slice(0));
-    } catch (e) {
-      setStatus('Preparing audio (exporter)…');
-      const wav = await VideoExport.extractAudioWav(file, { onStatus: setStatus });
-      const wbuf = await wav.arrayBuffer();
-      return await engine.ctx.decodeAudioData(wbuf);
+    const buf = await file.arrayBuffer();
+    return await engine.ctx.decodeAudioData(buf.slice(0));
+  }
+
+  // Real-time export fallback: play the video from the start through the live
+  // effect chain and capture the fully-processed audio into an AudioBuffer.
+  // Takes as long as the clip itself, but needs no decoder/FFmpeg, so it works
+  // on iOS Safari for files the browser can't decode offline.
+  async function captureProcessedRealtime(onProgress) {
+    engine.ensureContext();
+    videoEl.pause();
+    // Rewind to the start and wait for the seek to settle.
+    try { videoEl.currentTime = 0; } catch (e) {}
+    await new Promise((res) => {
+      if (videoEl.currentTime === 0 && videoEl.readyState >= 2) return res();
+      const onSeeked = () => { videoEl.removeEventListener('seeked', onSeeked); res(); };
+      videoEl.addEventListener('seeked', onSeeked);
+      setTimeout(res, 400);
+    });
+
+    engine.startCapture();
+    const ended = new Promise((res) => {
+      const onEnded = () => { videoEl.removeEventListener('ended', onEnded); res(); };
+      videoEl.addEventListener('ended', onEnded);
+    });
+    let prog = null;
+    if (onProgress) {
+      prog = setInterval(() => {
+        if (videoEl.duration) onProgress(videoEl.currentTime / videoEl.duration);
+      }, 250);
     }
+    try {
+      await videoEl.play();
+      await ended;
+    } finally {
+      if (prog) clearInterval(prog);
+    }
+    const buf = engine.stopCapture();
+    if (!buf || buf.length === 0) throw new Error('Real-time capture produced no audio');
+    return buf;
   }
 
   // ---------------------------------------------------------------
