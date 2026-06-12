@@ -176,46 +176,47 @@ class AudioEngine {
     const input = ctx.createGain();
     const output = ctx.createGain();
 
-    // --- Engaged path: split into low band + compressed sibilance band ---
-    // Low band (everything below crossover) passes clean
-    const low = ctx.createBiquadFilter();
-    low.type = 'lowpass';
-    low.frequency.value = 6500;
-    low.Q.value = 0.5;
-    const lowGain = ctx.createGain();
-    lowGain.gain.value = 0; // off by default
+    // Complementary (subtractive) de-esser. The full-range signal always
+    // passes clean at unity; the de-esser only ever SUBTRACTS from the high
+    // band. Output = dry + comp(HP) − HP. Below the threshold comp(HP) == HP,
+    // so the correction term is exactly zero and enabling the de-esser is
+    // perfectly transparent — it can never brighten or color the signal. When
+    // sibilance exceeds the threshold comp(HP) < HP, so the highs (and only the
+    // highs) get pulled down.
+    const dry = ctx.createGain();
+    dry.gain.value = 1;
+    input.connect(dry);
+    dry.connect(output);
 
-    // High band (sibilance) -> aggressive compressor
+    // Sibilance band: highpass at the crossover frequency.
     const high = ctx.createBiquadFilter();
     high.type = 'highpass';
     high.frequency.value = 6500;
-    high.Q.value = 0.5;
+    high.Q.value = 0.7071;
 
+    // Aggressive compressor on the sibilance band ("amount" lowers threshold).
     const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -22; // controlled by "amount"
+    comp.threshold.value = -22;
     comp.ratio.value = 12;
     comp.attack.value = 0.001;
     comp.release.value = 0.05;
     comp.knee.value = 6;
 
-    const highGain = ctx.createGain();
-    highGain.gain.value = 0; // off by default
+    // Correction paths: +comp(HP) and −HP. Both are 0 when bypassed, so the
+    // de-esser collapses to just the clean dry path.
+    const wetGain = ctx.createGain();
+    wetGain.gain.value = 0; // +1 when engaged: the compressed high band
+    const subGain = ctx.createGain();
+    subGain.gain.value = 0; // −1 when engaged: cancels the uncompressed high band
 
-    input.connect(low);
-    low.connect(lowGain);
-    lowGain.connect(output);
     input.connect(high);
     high.connect(comp);
-    comp.connect(highGain);
-    highGain.connect(output);
+    comp.connect(wetGain);
+    wetGain.connect(output);
+    high.connect(subGain);
+    subGain.connect(output);
 
-    // --- Bypass path: full-range signal when disabled ---
-    const bypass = ctx.createGain();
-    bypass.gain.value = 1; // on by default (de-esser starts disabled)
-    input.connect(bypass);
-    bypass.connect(output);
-
-    return { input, output, low, lowGain, high, comp, highGain, bypass, _on: false };
+    return { input, output, dry, high, comp, wetGain, subGain, _on: false };
   }
 
   // ---- Media source ----
@@ -362,13 +363,11 @@ class AudioEngine {
     if (on !== undefined) {
       d._on = on;
       const t = this.ctx.currentTime;
-      // Cross-fade between the split (engaged) path and the clean bypass.
-      d.lowGain.gain.setTargetAtTime(on ? 1 : 0, t, 0.01);
-      d.highGain.gain.setTargetAtTime(on ? 1 : 0, t, 0.01);
-      d.bypass.gain.setTargetAtTime(on ? 0 : 1, t, 0.01);
+      // Fade the subtractive correction in/out; the clean dry path is always on.
+      d.wetGain.gain.setTargetAtTime(on ? 1 : 0, t, 0.01);
+      d.subGain.gain.setTargetAtTime(on ? -1 : 0, t, 0.01);
     }
     if (freq !== undefined) {
-      d.low.frequency.value = freq;
       d.high.frequency.value = freq;
     }
     if (amount !== undefined) {
@@ -521,19 +520,24 @@ class AudioEngine {
     this.eqBands.forEach((b) =>
       biquad('peaking', b.frequency.value, b.Q.value, b.gain.value));
 
-    // De-esser (split-band) when engaged
+    // De-esser (complementary subtraction) when engaged. Mirrors the live
+    // graph: out = dry + comp(HP) − HP, transparent until sibilance exceeds
+    // the threshold. See _buildDeEsser for the rationale.
     if (this.nodes.deEss && this.nodes.deEss._on) {
       const input = node;
       const out = oc.createGain();
-      const fq = this.nodes.deEss.low.frequency.value;
-      const low = oc.createBiquadFilter(); low.type = 'lowpass'; low.frequency.value = fq; low.Q.value = 0.5;
-      const high = oc.createBiquadFilter(); high.type = 'highpass'; high.frequency.value = fq; high.Q.value = 0.5;
+      const fq = this.nodes.deEss.high.frequency.value;
+      const high = oc.createBiquadFilter();
+      high.type = 'highpass'; high.frequency.value = fq; high.Q.value = 0.7071;
       const dc = oc.createDynamicsCompressor();
       const ld = this.nodes.deEss.comp;
       dc.threshold.value = ld.threshold.value; dc.ratio.value = ld.ratio.value;
       dc.attack.value = ld.attack.value; dc.release.value = ld.release.value; dc.knee.value = ld.knee.value;
-      input.connect(low); low.connect(out);
-      input.connect(high); high.connect(dc); dc.connect(out);
+      input.connect(out);                              // clean dry signal
+      input.connect(high);
+      high.connect(dc); dc.connect(out);               // + comp(HP)
+      const sub = oc.createGain(); sub.gain.value = -1;
+      high.connect(sub); sub.connect(out);             // − HP
       node = out;
     }
 
