@@ -534,12 +534,20 @@
     exporting = false;
   });
 
-  // Decode the original file's audio with the browser. Throws if it can't read
-  // the container/codec (common for iPhone .mov) — the caller then falls back
-  // to a real-time capture, which avoids ffmpeg.wasm (broken on iOS Safari).
+  // Decode the original file's audio offline. Two tiers, fast → robust:
+  //   1. Browser decodeAudioData on the raw file (works for most files).
+  //   2. mp4box.js demux of just the AAC track → decode that (handles iPhone
+  //      .mov, whose HEVC video track makes Safari refuse the whole file).
+  // Throws if both fail — the caller then falls back to real-time capture.
   async function decodeOriginalAudio(file) {
-    const buf = await file.arrayBuffer();
-    return await engine.ctx.decodeAudioData(buf.slice(0));
+    try {
+      const buf = await file.arrayBuffer();
+      return await engine.ctx.decodeAudioData(buf.slice(0));
+    } catch (e1) {
+      const aac = await AudioDemux.extractAAC(file, { onStatus: setStatus });
+      const ab = await aac.arrayBuffer();
+      return await engine.ctx.decodeAudioData(ab);
+    }
   }
 
   // Real-time export fallback: play the video from the start through the live
