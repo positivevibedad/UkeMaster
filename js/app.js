@@ -21,6 +21,26 @@
   const playBtn = document.getElementById('playBtn');
   const fileName = document.getElementById('fileName');
 
+  // --- TEMP on-screen debug strip (removable) so we can see what happens on
+  // iOS without a console. Logs file picks and <video> lifecycle events. ---
+  const dbg = document.createElement('div');
+  dbg.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;'
+    + 'background:rgba(0,0,0,.85);color:#5f5;font:11px/1.4 monospace;'
+    + 'padding:4px 6px;white-space:pre-wrap;max-height:45%;overflow:auto;';
+  document.body.appendChild(dbg);
+  function dlog(m) {
+    dbg.textContent = new Date().toLocaleTimeString() + '  ' + m + '\n' + dbg.textContent;
+  }
+  dlog('ready (v32)');
+  ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'playing',
+   'stalled', 'suspend', 'error', 'abort'].forEach((ev) => {
+    videoEl.addEventListener(ev, () => {
+      let extra = '';
+      if (ev === 'error' && videoEl.error) extra = ' code=' + videoEl.error.code;
+      dlog('video: ' + ev + extra);
+    });
+  });
+
   // ---------------------------------------------------------------
   // File loading
   // ---------------------------------------------------------------
@@ -48,6 +68,8 @@
 
   function loadFile(file) {
     if (!file) return;
+    dlog('picked: ' + (file.name || '(no name)') + ' | type=' + (file.type || 'empty')
+      + ' | ' + Math.round((file.size || 0) / 1e6) + 'MB');
     const url = URL.createObjectURL(file);
     videoEl.src = url;
     currentFile = file;
@@ -82,9 +104,10 @@
 
   browseBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', (e) => {
+    // NOTE: do NOT reset e.target.value here — on iOS clearing the input can
+    // release the temporary Photos export the blob URL points to, so the
+    // video fails to load.
     loadFile(e.target.files && e.target.files[0]);
-    // Reset so re-picking the same file still fires a change event.
-    e.target.value = '';
   });
   // Clicking the filename in the analyzer overlay lets you swap the file.
   fileName.addEventListener('click', () => fileInput.click());
