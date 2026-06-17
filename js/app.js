@@ -65,16 +65,9 @@
       if (hint) hint.textContent = 'That’s not a video or audio file — pick a video.';
       return;
     }
-    // Photos exports sometimes arrive with an empty MIME type; a type-less
-    // blob URL gives the <video> element nothing to identify the format, so
-    // Safari can reject it. Stamp a sensible type on (Blob.slice is lazy — no
-    // copy, so this is cheap even for large files).
-    let media = file;
-    if (!file.type) {
-      const ext = (file.name.split('.').pop() || '').toLowerCase();
-      media = file.slice(0, file.size, ext === 'mov' ? 'video/quicktime' : 'video/mp4');
-    }
-    const url = URL.createObjectURL(media);
+    // Plain blob URL: let Safari sniff the format from the bytes. (Stamping an
+    // explicit MIME type here breaks files whose guessed type doesn't match.)
+    const url = URL.createObjectURL(file);
     const loadingOverlay = document.getElementById('loadingOverlay');
 
     // Surface a real load failure instead of stalling with no feedback.
