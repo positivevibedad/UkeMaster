@@ -46,60 +46,22 @@
     });
   }
 
-  // The iOS picker is unfiltered, so guard against picking a photo — but be
-  // permissive: Photos exports from album views (Favorites / Collections)
-  // often arrive with an EMPTY mime type and a generic name, so only reject
-  // things that are clearly images and let everything else reach the <video>
-  // element (which will raise an error if it really can't play it).
-  function isMediaFile(file) {
-    const t = (file.type || '').toLowerCase();
-    if (t.startsWith('image/')) return false;
-    if (/\.(heic|heif|jpe?g|png|gif|webp|bmp|tiff?)$/i.test(file.name || '')) return false;
-    return true;
-  }
-
   function loadFile(file) {
     if (!file) return;
-    const hint = dropZone.querySelector('.hint');
-    if (!isMediaFile(file)) {
-      if (hint) hint.textContent = 'That’s not a video or audio file — pick a video.';
-      return;
-    }
-    // Plain blob URL: let Safari sniff the format from the bytes. (Stamping an
-    // explicit MIME type here breaks files whose guessed type doesn't match.)
     const url = URL.createObjectURL(file);
-    const loadingOverlay = document.getElementById('loadingOverlay');
-
-    // Surface a real load failure instead of stalling with no feedback.
-    const onError = () => {
-      videoEl.removeEventListener('error', onError);
-      loadingOverlay.classList.add('hidden');
-      dropZone.classList.remove('hidden');
-      playerWrap.classList.add('hidden');
-      const code = videoEl.error ? videoEl.error.code : 0;
-      const reason = code === 4 ? 'format not supported'
-        : code === 3 ? 'decode failed'
-        : code === 2 ? 'network/read error'
-        : code === 1 ? 'aborted' : 'unknown';
-      if (hint) hint.textContent =
-        'Couldn’t load that video (error ' + code + ': ' + reason + '). '
-        + 'Size: ' + Math.round((file.size || 0) / 1e6) + ' MB.';
-    };
-    videoEl.addEventListener('error', onError, { once: true });
-
     videoEl.src = url;
     currentFile = file;
     currentFileName = file.name;
     fileName.textContent = file.name;
     dropZone.classList.add('hidden');
     playerWrap.classList.remove('hidden');
-    // Show a spinner while iOS prepares the file / metadata loads — this can
-    // take a while for videos coming from the Photos library.
-    loadingOverlay.classList.remove('hidden');
-    // Connect to the audio graph once metadata is ready.
-    videoEl.addEventListener('loadedmetadata', () => {
-      loadingOverlay.classList.add('hidden');
-      videoEl.removeEventListener('error', onError);
+
+    // Build the audio graph once the video is ready. iOS sometimes defers
+    // 'loadedmetadata', so accept 'loadeddata' too; run the setup once.
+    let ready = false;
+    const onReady = () => {
+      if (ready) return;
+      ready = true;
       engine.connectMediaElement(videoEl); // builds the audio graph
       syncEngineFromUI();                   // apply current control values
       if (!analyzer) {
@@ -113,7 +75,9 @@
         eqNodes.layoutAll();
       }
       document.getElementById('recordBtn').disabled = false;
-    }, { once: true });
+    };
+    videoEl.addEventListener('loadedmetadata', onReady, { once: true });
+    videoEl.addEventListener('loadeddata', onReady, { once: true });
   }
 
   browseBtn.addEventListener('click', () => fileInput.click());
