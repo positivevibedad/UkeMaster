@@ -73,6 +73,11 @@
       videoEl.removeEventListener('error', onError);
       dropZone.classList.remove('hidden');
       playerWrap.classList.add('hidden');
+      // TEMP DIAGNOSTIC: report the media error reason.
+      const err = videoEl.error;
+      alert('Video load error:\n'
+        + 'code: ' + (err ? err.code : '(none)') + '\n'
+        + 'message: ' + (err && err.message ? err.message : '(none)'));
       if (hint) hint.textContent =
         'Couldn’t load that video. If it’s stored in iCloud, open it once in '
         + 'Photos to download it, then try again.';
@@ -105,7 +110,19 @@
   }
 
   browseBtn.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => loadFile(e.target.files[0]));
+  fileInput.addEventListener('change', (e) => {
+    // TEMP DIAGNOSTIC: surface exactly what the iOS picker returns so we can
+    // see why Favorites/Collections videos don't load.
+    const f = e.target.files && e.target.files[0];
+    alert('Picked file:\n'
+      + 'count: ' + (e.target.files ? e.target.files.length : 0) + '\n'
+      + 'name: ' + (f ? (f.name || '(empty)') : 'NO FILE') + '\n'
+      + 'type: ' + (f ? (f.type || '(empty)') : '-') + '\n'
+      + 'size: ' + (f ? f.size : '-') + ' bytes');
+    loadFile(f);
+    // Reset so re-picking the same file still fires a change event.
+    e.target.value = '';
+  });
   // Clicking the filename in the analyzer overlay lets you swap the file.
   fileName.addEventListener('click', () => fileInput.click());
 
