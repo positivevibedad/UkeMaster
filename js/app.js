@@ -65,19 +65,32 @@
       if (hint) hint.textContent = 'That’s not a video or audio file — pick a video.';
       return;
     }
-    const url = URL.createObjectURL(file);
+    // Photos exports sometimes arrive with an empty MIME type; a type-less
+    // blob URL gives the <video> element nothing to identify the format, so
+    // Safari can reject it. Stamp a sensible type on (Blob.slice is lazy — no
+    // copy, so this is cheap even for large files).
+    let media = file;
+    if (!file.type) {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      media = file.slice(0, file.size, ext === 'mov' ? 'video/quicktime' : 'video/mp4');
+    }
+    const url = URL.createObjectURL(media);
     const loadingOverlay = document.getElementById('loadingOverlay');
 
-    // Surface a real load failure (e.g. an iCloud video that isn't downloaded
-    // to the device yet) instead of stalling with no feedback.
+    // Surface a real load failure instead of stalling with no feedback.
     const onError = () => {
       videoEl.removeEventListener('error', onError);
       loadingOverlay.classList.add('hidden');
       dropZone.classList.remove('hidden');
       playerWrap.classList.add('hidden');
+      const code = videoEl.error ? videoEl.error.code : 0;
+      const reason = code === 4 ? 'format not supported'
+        : code === 3 ? 'decode failed'
+        : code === 2 ? 'network/read error'
+        : code === 1 ? 'aborted' : 'unknown';
       if (hint) hint.textContent =
-        'Couldn’t load that video. If it’s stored in iCloud, open it once in '
-        + 'Photos to download it, then try again.';
+        'Couldn’t load that video (error ' + code + ': ' + reason + '). '
+        + 'Size: ' + Math.round((file.size || 0) / 1e6) + ' MB.';
     };
     videoEl.addEventListener('error', onError, { once: true });
 
