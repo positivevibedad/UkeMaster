@@ -46,24 +46,39 @@
     });
   }
 
-  // Accept any picked file (so the iOS picker stays fully selectable) but only
-  // load real media; gently reject anything else (e.g. a photo).
+  // The iOS picker is unfiltered, so guard against picking a photo — but be
+  // permissive: Photos exports from album views (Favorites / Collections)
+  // often arrive with an EMPTY mime type and a generic name, so only reject
+  // things that are clearly images and let everything else reach the <video>
+  // element (which will raise an error if it really can't play it).
   function isMediaFile(file) {
     const t = (file.type || '').toLowerCase();
-    if (t.startsWith('video/') || t.startsWith('audio/')) return true;
     if (t.startsWith('image/')) return false;
-    // type can be empty on iOS — fall back to the extension.
-    return /\.(mov|mp4|m4v|m4a|aac|mp3|wav|aif|aiff|caf|webm|ogg|3gp)$/i.test(file.name || '');
+    if (/\.(heic|heif|jpe?g|png|gif|webp|bmp|tiff?)$/i.test(file.name || '')) return false;
+    return true;
   }
 
   function loadFile(file) {
     if (!file) return;
+    const hint = dropZone.querySelector('.hint');
     if (!isMediaFile(file)) {
-      const hint = dropZone.querySelector('.hint');
       if (hint) hint.textContent = 'That’s not a video or audio file — pick a video.';
       return;
     }
     const url = URL.createObjectURL(file);
+
+    // Surface a real load failure (e.g. an iCloud video that isn't downloaded
+    // to the device yet) instead of stalling with no feedback.
+    const onError = () => {
+      videoEl.removeEventListener('error', onError);
+      dropZone.classList.remove('hidden');
+      playerWrap.classList.add('hidden');
+      if (hint) hint.textContent =
+        'Couldn’t load that video. If it’s stored in iCloud, open it once in '
+        + 'Photos to download it, then try again.';
+    };
+    videoEl.addEventListener('error', onError, { once: true });
+
     videoEl.src = url;
     currentFile = file;
     currentFileName = file.name;
@@ -72,6 +87,7 @@
     playerWrap.classList.remove('hidden');
     // Connect to the audio graph once metadata is ready.
     videoEl.addEventListener('loadedmetadata', () => {
+      videoEl.removeEventListener('error', onError);
       engine.connectMediaElement(videoEl); // builds the audio graph
       syncEngineFromUI();                   // apply current control values
       if (!analyzer) {
