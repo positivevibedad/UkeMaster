@@ -34,7 +34,10 @@
     <!-- Video stage -->
     <section class="stage">
       <div id="dropZone" class="drop-zone">
-        <input type="file" id="fileInput" accept="video/*,audio/*" hidden />
+        <!-- No accept filter: a multi-type accept (video/*,audio/*) makes the
+             iOS Photos picker grey out videos in album views (Favorites /
+             Collections). We allow any file and validate the type in JS. -->
+        <input type="file" id="fileInput" hidden />
         <div class="drop-inner">
           <span class="drop-icon">🎬</span>
           <p><strong>Drop a video</strong> or <button id="browseBtn" class="link-btn">browse</button></p>
@@ -203,12 +206,12 @@
     </nav>
   </div>
 
-  <script src="js/audioEngine.js?v=25"></script>
-  <script src="js/analyzer.js?v=25"></script>
-  <script src="js/loudness.js?v=25"></script>
-  <script src="js/audioDemux.js?v=25"></script>
-  <script src="js/videoExport.js?v=25"></script>
-  <script src="js/ui.js?v=25"></script>
-  <script src="js/app.js?v=25"></script>
+  <script src="js/audioEngine.js?v=26"></script>
+  <script src="js/analyzer.js?v=26"></script>
+  <script src="js/loudness.js?v=26"></script>
+  <script src="js/audioDemux.js?v=26"></script>
+  <script src="js/videoExport.js?v=26"></script>
+  <script src="js/ui.js?v=26"></script>
+  <script src="js/app.js?v=26"></script>
 </body>
 </html>

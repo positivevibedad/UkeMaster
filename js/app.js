@@ -46,8 +46,23 @@
     });
   }
 
+  // Accept any picked file (so the iOS picker stays fully selectable) but only
+  // load real media; gently reject anything else (e.g. a photo).
+  function isMediaFile(file) {
+    const t = (file.type || '').toLowerCase();
+    if (t.startsWith('video/') || t.startsWith('audio/')) return true;
+    if (t.startsWith('image/')) return false;
+    // type can be empty on iOS — fall back to the extension.
+    return /\.(mov|mp4|m4v|m4a|aac|mp3|wav|aif|aiff|caf|webm|ogg|3gp)$/i.test(file.name || '');
+  }
+
   function loadFile(file) {
     if (!file) return;
+    if (!isMediaFile(file)) {
+      const hint = dropZone.querySelector('.hint');
+      if (hint) hint.textContent = 'That’s not a video or audio file — pick a video.';
+      return;
+    }
     const url = URL.createObjectURL(file);
     videoEl.src = url;
     currentFile = file;
