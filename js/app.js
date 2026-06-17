@@ -66,18 +66,15 @@
       return;
     }
     const url = URL.createObjectURL(file);
+    const loadingOverlay = document.getElementById('loadingOverlay');
 
     // Surface a real load failure (e.g. an iCloud video that isn't downloaded
     // to the device yet) instead of stalling with no feedback.
     const onError = () => {
       videoEl.removeEventListener('error', onError);
+      loadingOverlay.classList.add('hidden');
       dropZone.classList.remove('hidden');
       playerWrap.classList.add('hidden');
-      // TEMP DIAGNOSTIC: report the media error reason.
-      const err = videoEl.error;
-      alert('Video load error:\n'
-        + 'code: ' + (err ? err.code : '(none)') + '\n'
-        + 'message: ' + (err && err.message ? err.message : '(none)'));
       if (hint) hint.textContent =
         'Couldn’t load that video. If it’s stored in iCloud, open it once in '
         + 'Photos to download it, then try again.';
@@ -90,8 +87,12 @@
     fileName.textContent = file.name;
     dropZone.classList.add('hidden');
     playerWrap.classList.remove('hidden');
+    // Show a spinner while iOS prepares the file / metadata loads — this can
+    // take a while for videos coming from the Photos library.
+    loadingOverlay.classList.remove('hidden');
     // Connect to the audio graph once metadata is ready.
     videoEl.addEventListener('loadedmetadata', () => {
+      loadingOverlay.classList.add('hidden');
       videoEl.removeEventListener('error', onError);
       engine.connectMediaElement(videoEl); // builds the audio graph
       syncEngineFromUI();                   // apply current control values
@@ -111,15 +112,7 @@
 
   browseBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', (e) => {
-    // TEMP DIAGNOSTIC: surface exactly what the iOS picker returns so we can
-    // see why Favorites/Collections videos don't load.
-    const f = e.target.files && e.target.files[0];
-    alert('Picked file:\n'
-      + 'count: ' + (e.target.files ? e.target.files.length : 0) + '\n'
-      + 'name: ' + (f ? (f.name || '(empty)') : 'NO FILE') + '\n'
-      + 'type: ' + (f ? (f.type || '(empty)') : '-') + '\n'
-      + 'size: ' + (f ? f.size : '-') + ' bytes');
-    loadFile(f);
+    loadFile(e.target.files && e.target.files[0]);
     // Reset so re-picking the same file still fires a change event.
     e.target.value = '';
   });

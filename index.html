@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>UkeMaster — Audio Mixing Studio</title>
-  <link rel="stylesheet" href="styles.css?v=21" />
+  <link rel="stylesheet" href="styles.css?v=29" />
 </head>
 <body>
   <div class="app">
@@ -46,6 +46,10 @@
       </div>
       <div id="playerWrap" class="player-wrap hidden">
         <video id="videoEl" playsinline controls></video>
+        <div id="loadingOverlay" class="loading-overlay hidden">
+          <div class="spinner"></div>
+          <span>Preparing video…</span>
+        </div>
       </div>
     </section>
 
@@ -206,12 +210,12 @@
     </nav>
   </div>
 
-  <script src="js/audioEngine.js?v=28"></script>
-  <script src="js/analyzer.js?v=28"></script>
-  <script src="js/loudness.js?v=28"></script>
-  <script src="js/audioDemux.js?v=28"></script>
-  <script src="js/videoExport.js?v=28"></script>
-  <script src="js/ui.js?v=28"></script>
-  <script src="js/app.js?v=28"></script>
+  <script src="js/audioEngine.js?v=29"></script>
+  <script src="js/analyzer.js?v=29"></script>
+  <script src="js/loudness.js?v=29"></script>
+  <script src="js/audioDemux.js?v=29"></script>
+  <script src="js/videoExport.js?v=29"></script>
+  <script src="js/ui.js?v=29"></script>
+  <script src="js/app.js?v=29"></script>
 </body>
 </html>
