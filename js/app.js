@@ -75,13 +75,18 @@
     fileName.textContent = file.name;
     dropZone.classList.add('hidden');
     playerWrap.classList.remove('hidden');
+    // Show the spinner until the video can actually play. Large clips fire
+    // 'loadedmetadata' almost immediately but take many seconds to reach
+    // 'canplay', so this covers the real wait instead of flashing past.
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    loadingOverlay.classList.remove('hidden');
 
-    // Build the audio graph once the video is ready. iOS sometimes defers
-    // 'loadedmetadata', so accept 'loadeddata' too; run the setup once.
-    let ready = false;
-    const onReady = () => {
-      if (ready) return;
-      ready = true;
+    // Build the audio graph once metadata is known (export can be enabled even
+    // before the video is fully buffered).
+    let built = false;
+    const buildGraph = () => {
+      if (built) return;
+      built = true;
       engine.connectMediaElement(videoEl); // builds the audio graph
       syncEngineFromUI();                   // apply current control values
       if (!analyzer) {
@@ -96,7 +101,13 @@
       }
       document.getElementById('recordBtn').disabled = false;
     };
-    videoEl.addEventListener('loadedmetadata', onReady, { once: true });
+    // Hide the spinner once the video is genuinely ready to play.
+    const onReady = () => {
+      loadingOverlay.classList.add('hidden');
+      buildGraph();
+    };
+    videoEl.addEventListener('loadedmetadata', buildGraph, { once: true });
+    videoEl.addEventListener('canplay', onReady, { once: true });
     videoEl.addEventListener('loadeddata', onReady, { once: true });
   }
 
