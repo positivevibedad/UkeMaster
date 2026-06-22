@@ -34,7 +34,9 @@ class AudioEngine {
     if (!this.ctx) {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this._buildGraph();
-      this._loadDeEsserWorklet(); // async; passthrough until ready
+      // De-esser worklet disabled for now — it was outputting silence on
+      // device and, being inline, killed all audio. Left as a transparent
+      // passthrough until reworked. See _loadDeEsserWorklet.
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
     return this.ctx;
@@ -513,25 +515,8 @@ class AudioEngine {
     this.eqBands.forEach((b) =>
       biquad('peaking', b.frequency.value, b.Q.value, b.gain.value));
 
-    // De-esser via the same AudioWorklet as the live graph (so the export
-    // matches what you hear). Skipped gracefully if the worklet won't load.
-    const d = this.nodes.deEss;
-    if (d && d._on && oc.audioWorklet) {
-      try {
-        await oc.audioWorklet.addModule(DEESSER_WORKLET);
-        const dn = new AudioWorkletNode(oc, 'de-esser', {
-          numberOfInputs: 1, numberOfOutputs: 1,
-          outputChannelCount: [audioBuffer.numberOfChannels],
-        });
-        dn.parameters.get('enabled').value = 1;
-        dn.parameters.get('freq').value = d._freq;
-        dn.parameters.get('amount').value = d._amount;
-        node.connect(dn);
-        node = dn;
-      } catch (e) {
-        console.warn('Offline de-esser worklet failed; skipping.', e);
-      }
-    }
+    // De-esser temporarily disabled (worklet caused silence on device); the
+    // signal passes through untouched here, matching the live graph.
 
     // Compressor
     if (this._compOn) {
