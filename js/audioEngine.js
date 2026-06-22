@@ -198,17 +198,29 @@ class AudioEngine {
     comp.release.value = 0.05;
     comp.knee.value = 6;
 
+    // The DynamicsCompressor adds a small internal latency. Run the low band
+    // through a transparent (ratio 1:1) compressor so it gets the SAME latency
+    // — otherwise low + high recombine misaligned and comb-filter into a bright
+    // peak. Matched latency keeps the LR4 sum flat.
+    const lowDelayComp = ctx.createDynamicsCompressor();
+    lowDelayComp.threshold.value = 0;
+    lowDelayComp.ratio.value = 1;
+    lowDelayComp.knee.value = 0;
+    lowDelayComp.attack.value = 0.001;
+    lowDelayComp.release.value = 0.05;
+
     // Engaged path = low + comp(high); bypass = clean input when disabled.
     const lowGain = ctx.createGain();  lowGain.gain.value = 0;
     const highGain = ctx.createGain(); highGain.gain.value = 0;
     const bypass = ctx.createGain();   bypass.gain.value = 1;
 
-    input.connect(lp1); lp1.connect(lp2); lp2.connect(lowGain); lowGain.connect(output);
+    input.connect(lp1); lp1.connect(lp2); lp2.connect(lowDelayComp);
+    lowDelayComp.connect(lowGain); lowGain.connect(output);
     input.connect(hp1); hp1.connect(hp2); hp2.connect(comp);
     comp.connect(highGain); highGain.connect(output);
     input.connect(bypass); bypass.connect(output);
 
-    return { input, output, lp1, lp2, hp1, hp2, comp, lowGain, highGain, bypass, _on: false };
+    return { input, output, lp1, lp2, hp1, hp2, comp, lowDelayComp, lowGain, highGain, bypass, _on: false };
   }
 
   // ---- Media source ----
@@ -531,8 +543,12 @@ class AudioEngine {
       const ld = this.nodes.deEss.comp;
       dc.threshold.value = ld.threshold.value; dc.ratio.value = ld.ratio.value;
       dc.attack.value = ld.attack.value; dc.release.value = ld.release.value; dc.knee.value = ld.knee.value;
-      input.connect(lp1); lp1.connect(lp2); lp2.connect(out);          // low band
-      input.connect(hp1); hp1.connect(hp2); hp2.connect(dc); dc.connect(out); // comp(high)
+      // Match the compressor's latency on the low band (see _buildDeEsser).
+      const lowDc = oc.createDynamicsCompressor();
+      lowDc.threshold.value = 0; lowDc.ratio.value = 1; lowDc.knee.value = 0;
+      lowDc.attack.value = 0.001; lowDc.release.value = 0.05;
+      input.connect(lp1); lp1.connect(lp2); lp2.connect(lowDc); lowDc.connect(out); // low band
+      input.connect(hp1); hp1.connect(hp2); hp2.connect(dc); dc.connect(out);       // comp(high)
       node = out;
     }
 
