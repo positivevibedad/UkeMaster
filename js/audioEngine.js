@@ -8,6 +8,9 @@
  *          -> masterGain -> destination (+ recording tap)
  */
 
+// AudioWorklet module for the de-esser (bump the query to bust caches).
+const DEESSER_WORKLET = 'js/deEsserWorklet.js?v=41';
+
 // Four musical EQ bands (Low, Low-Mid, Hi-Mid, High).
 const EQ_BANDS = [
   { freq: 120,  label: 'Low' },
@@ -31,6 +34,7 @@ class AudioEngine {
     if (!this.ctx) {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this._buildGraph();
+      this._loadDeEsserWorklet(); // async; passthrough until ready
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
     return this.ctx;
@@ -173,54 +177,40 @@ class AudioEngine {
   }
 
   _buildDeEsser(ctx) {
+    // The actual de-essing happens in an AudioWorklet (see deEsserWorklet.js),
+    // which processes sample-by-sample and so can't comb-filter/brighten the
+    // way the node-graph versions did. The worklet module loads asynchronously;
+    // until it's ready, input passes straight through to output.
     const input = ctx.createGain();
     const output = ctx.createGain();
+    input.connect(output);
+    return { input, output, node: null, _on: false, _freq: 6500, _amount: 12, _reduction: 0 };
+  }
 
-    // Split-band de-esser with a Linkwitz-Riley 4th-order crossover (two
-    // cascaded Butterworth biquads per band). LR4 low + high sum flat, so
-    // enabling it with no sibilance is transparent (no brightening). The high
-    // band is compressed; compressing a band can only ever REDUCE it, so more
-    // "amount" always means darker / less sibilance — never brighter.
-    const fc = 6500;
-    const mk = (type) => {
-      const b = ctx.createBiquadFilter();
-      b.type = type; b.frequency.value = fc; b.Q.value = 0.7071;
-      return b;
+  // Load the de-esser worklet and splice its node between input and output.
+  async _loadDeEsserWorklet() {
+    const d = this.nodes.deEss;
+    if (!d || d.node || !this.ctx.audioWorklet) return;
+    try {
+      await this.ctx.audioWorklet.addModule(DEESSER_WORKLET);
+    } catch (e) {
+      console.warn('De-esser worklet failed to load; de-esser disabled.', e);
+      return;
+    }
+    const node = new AudioWorkletNode(this.ctx, 'de-esser', {
+      numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+    });
+    node.port.onmessage = (e) => {
+      if (e.data && e.data.reduction !== undefined) d._reduction = e.data.reduction;
     };
-    const lp1 = mk('lowpass'), lp2 = mk('lowpass');
-    const hp1 = mk('highpass'), hp2 = mk('highpass');
-
-    // Aggressive compressor on the sibilance band ("amount" lowers threshold).
-    const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -20;
-    comp.ratio.value = 12;
-    comp.attack.value = 0.001;
-    comp.release.value = 0.05;
-    comp.knee.value = 6;
-
-    // The DynamicsCompressor adds a small internal latency. Run the low band
-    // through a transparent (ratio 1:1) compressor so it gets the SAME latency
-    // — otherwise low + high recombine misaligned and comb-filter into a bright
-    // peak. Matched latency keeps the LR4 sum flat.
-    const lowDelayComp = ctx.createDynamicsCompressor();
-    lowDelayComp.threshold.value = 0;
-    lowDelayComp.ratio.value = 1;
-    lowDelayComp.knee.value = 0;
-    lowDelayComp.attack.value = 0.001;
-    lowDelayComp.release.value = 0.05;
-
-    // Engaged path = low + comp(high); bypass = clean input when disabled.
-    const lowGain = ctx.createGain();  lowGain.gain.value = 0;
-    const highGain = ctx.createGain(); highGain.gain.value = 0;
-    const bypass = ctx.createGain();   bypass.gain.value = 1;
-
-    input.connect(lp1); lp1.connect(lp2); lp2.connect(lowDelayComp);
-    lowDelayComp.connect(lowGain); lowGain.connect(output);
-    input.connect(hp1); hp1.connect(hp2); hp2.connect(comp);
-    comp.connect(highGain); highGain.connect(output);
-    input.connect(bypass); bypass.connect(output);
-
-    return { input, output, lp1, lp2, hp1, hp2, comp, lowDelayComp, lowGain, highGain, bypass, _on: false };
+    // Splice the worklet in: input -> node -> output.
+    try { d.input.disconnect(); } catch (e) {}
+    d.input.connect(node);
+    node.connect(d.output);
+    d.node = node;
+    node.parameters.get('enabled').value = d._on ? 1 : 0;
+    node.parameters.get('freq').value = d._freq;
+    node.parameters.get('amount').value = d._amount;
   }
 
   // ---- Media source ----
@@ -364,21 +354,18 @@ class AudioEngine {
   setDeEsser({ on, freq, amount }) {
     const d = this.nodes.deEss;
     if (!d) return;
+    const t = this.ctx ? this.ctx.currentTime : 0;
     if (on !== undefined) {
       d._on = on;
-      const t = this.ctx.currentTime;
-      // Cross-fade between the split (low + compressed high) path and bypass.
-      d.lowGain.gain.setTargetAtTime(on ? 1 : 0, t, 0.01);
-      d.highGain.gain.setTargetAtTime(on ? 1 : 0, t, 0.01);
-      d.bypass.gain.setTargetAtTime(on ? 0 : 1, t, 0.01);
+      if (d.node) d.node.parameters.get('enabled').setValueAtTime(on ? 1 : 0, t);
     }
     if (freq !== undefined) {
-      d.lp1.frequency.value = freq; d.lp2.frequency.value = freq;
-      d.hp1.frequency.value = freq; d.hp2.frequency.value = freq;
+      d._freq = freq;
+      if (d.node) d.node.parameters.get('freq').setValueAtTime(freq, t);
     }
     if (amount !== undefined) {
-      // amount (0..40 dB) maps to a lower threshold -> more reduction
-      d.comp.threshold.value = -8 - amount;
+      d._amount = amount;
+      if (d.node) d.node.parameters.get('amount').setValueAtTime(amount, t);
     }
   }
 
@@ -420,7 +407,7 @@ class AudioEngine {
 
   getDeEssReduction() {
     return this.nodes.deEss && this.nodes.deEss._on
-      ? this.nodes.deEss.comp.reduction : 0;
+      ? (this.nodes.deEss._reduction || 0) : 0;
   }
 
   // ---- Limiter curve (soft tanh clip at ceiling) ----
@@ -526,30 +513,24 @@ class AudioEngine {
     this.eqBands.forEach((b) =>
       biquad('peaking', b.frequency.value, b.Q.value, b.gain.value));
 
-    // De-esser (LR4 split-band: low + comp(high)) when engaged. Mirrors the
-    // live graph. See _buildDeEsser for the rationale.
-    if (this.nodes.deEss && this.nodes.deEss._on) {
-      const input = node;
-      const out = oc.createGain();
-      const fq = this.nodes.deEss.hp1.frequency.value;
-      const mk = (type) => {
-        const b = oc.createBiquadFilter();
-        b.type = type; b.frequency.value = fq; b.Q.value = 0.7071;
-        return b;
-      };
-      const lp1 = mk('lowpass'), lp2 = mk('lowpass');
-      const hp1 = mk('highpass'), hp2 = mk('highpass');
-      const dc = oc.createDynamicsCompressor();
-      const ld = this.nodes.deEss.comp;
-      dc.threshold.value = ld.threshold.value; dc.ratio.value = ld.ratio.value;
-      dc.attack.value = ld.attack.value; dc.release.value = ld.release.value; dc.knee.value = ld.knee.value;
-      // Match the compressor's latency on the low band (see _buildDeEsser).
-      const lowDc = oc.createDynamicsCompressor();
-      lowDc.threshold.value = 0; lowDc.ratio.value = 1; lowDc.knee.value = 0;
-      lowDc.attack.value = 0.001; lowDc.release.value = 0.05;
-      input.connect(lp1); lp1.connect(lp2); lp2.connect(lowDc); lowDc.connect(out); // low band
-      input.connect(hp1); hp1.connect(hp2); hp2.connect(dc); dc.connect(out);       // comp(high)
-      node = out;
+    // De-esser via the same AudioWorklet as the live graph (so the export
+    // matches what you hear). Skipped gracefully if the worklet won't load.
+    const d = this.nodes.deEss;
+    if (d && d._on && oc.audioWorklet) {
+      try {
+        await oc.audioWorklet.addModule(DEESSER_WORKLET);
+        const dn = new AudioWorkletNode(oc, 'de-esser', {
+          numberOfInputs: 1, numberOfOutputs: 1,
+          outputChannelCount: [audioBuffer.numberOfChannels],
+        });
+        dn.parameters.get('enabled').value = 1;
+        dn.parameters.get('freq').value = d._freq;
+        dn.parameters.get('amount').value = d._amount;
+        node.connect(dn);
+        node = dn;
+      } catch (e) {
+        console.warn('Offline de-esser worklet failed; skipping.', e);
+      }
     }
 
     // Compressor
