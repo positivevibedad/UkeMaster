@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>UkeMaster — Audio Mixing Studio</title>
-  <link rel="stylesheet" href="styles.css?v=42" />
+  <link rel="stylesheet" href="styles.css?v=43" />
 </head>
 <body>
   <div class="app">
@@ -199,19 +199,22 @@
     </section>
 
     <nav class="tabs">
-      <button class="tab" data-tab="deesser">De-Esser</button>
+      <!-- De-Esser hidden in the web app: reliable de-essing needs native
+           audio (see NATIVE_TODO.md). The module markup is kept in the DOM so
+           the existing JS bindings stay valid; it's just unreachable. -->
+      <button class="tab" data-tab="deesser" style="display:none">De-Esser</button>
       <button class="tab active" data-tab="eq">EQ</button>
       <button class="tab" data-tab="filters">Filters</button>
       <button class="tab" data-tab="comp">Compressor</button>
     </nav>
   </div>
 
-  <script src="js/audioEngine.js?v=42"></script>
-  <script src="js/analyzer.js?v=42"></script>
-  <script src="js/loudness.js?v=42"></script>
-  <script src="js/audioDemux.js?v=42"></script>
-  <script src="js/videoExport.js?v=42"></script>
-  <script src="js/ui.js?v=42"></script>
-  <script src="js/app.js?v=42"></script>
+  <script src="js/audioEngine.js?v=43"></script>
+  <script src="js/analyzer.js?v=43"></script>
+  <script src="js/loudness.js?v=43"></script>
+  <script src="js/audioDemux.js?v=43"></script>
+  <script src="js/videoExport.js?v=43"></script>
+  <script src="js/ui.js?v=43"></script>
+  <script src="js/app.js?v=43"></script>
 </body>
 </html>
